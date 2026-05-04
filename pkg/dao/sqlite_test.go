@@ -57,8 +57,8 @@ func TestAddFeed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddFeed: %v", err)
 	}
-	if got.ID == 0 {
-		t.Error("expected non-zero ID after insert")
+	if got.ID != 1 {
+		t.Errorf("expected ID after insert, got %v", got.ID)
 	}
 	if got.URL != feed.URL {
 		t.Errorf("URL: got %q, want %q", got.URL, feed.URL)
