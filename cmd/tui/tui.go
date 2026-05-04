@@ -68,6 +68,7 @@ type model struct {
 	readableDelegate readableDelegate
 	focusedPane      pane
 	currentFeedID    int64
+	currentArticleID int64
 	theme            theme.Theme
 	styles           styles
 	keys             KeyMap
@@ -75,6 +76,7 @@ type model struct {
 	height           int
 	ready            bool
 	showHelp         bool
+	showArticle      bool
 	status           *statusMsg
 	statusVersion    int
 }
@@ -242,6 +244,7 @@ func (m model) View() tea.View {
 	v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left, panels, help, statusBar))
 	v.AltScreen = true
 
+	// -- Help view -------------------------------------------------------------
 	if m.showHelp {
 		v = tea.NewView(lipgloss.Place(
 			m.width, m.height,
@@ -251,45 +254,22 @@ func (m model) View() tea.View {
 		v.AltScreen = true
 	}
 
+	// -- View article view -----------------------------------------------------
+	if m.showArticle {
+		v = tea.NewView(lipgloss.Place(
+			m.width, m.height,
+			lipgloss.Center, lipgloss.Center,
+			m.renderArticleModal(),
+		))
+		v.AltScreen = true
+	}
+
 	return v
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-// renderHelpModal returns a styled modal box listing all keybindings.
-func (m model) renderHelpModal() string {
-	k := m.keys
-
-	row := func(key, desc string) string {
-		return fmt.Sprintf("  %-14s %s", key, desc)
-	}
-
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		m.styles.focusedTitle.Render("Keymaps"),
-		"",
-		m.styles.help.Render("Global"),
-		row(k.Quit.Help().Key, k.Quit.Help().Desc),
-		row(k.Help.Help().Key, k.Help.Help().Desc),
-		"",
-		m.styles.help.Render("Feeds pane"),
-		row("j/k/↑/↓", "navigate"),
-		row("/", "filter"),
-		row(k.OpenFeed.Help().Key, k.OpenFeed.Help().Desc),
-		row(k.MarkAllAsRead.Help().Key, k.MarkAllAsRead.Help().Desc),
-		"",
-		m.styles.help.Render("Articles pane"),
-		row("j/k/↑/↓", "navigate"),
-		row("/", "filter"),
-		row(k.OpenArticle.Help().Key, k.OpenArticle.Help().Desc),
-		row(k.MarkAsRead.Help().Key, k.MarkAsRead.Help().Desc),
-		row(k.Back.Help().Key, k.Back.Help().Desc),
-		"",
-		m.styles.help.Render("Press ? or esc to close"),
-	)
-
-	return m.styles.focusedBorder.Padding(1, 3).Render(content)
-}
-
+// Run is the entry point to the TUI.
 func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 	feeds, err := db.GetFeeds()
 	if err != nil {
