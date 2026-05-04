@@ -29,9 +29,11 @@ func NewSQLiteClient() (DaoClient, error) {
 	c := &SQLiteClient{db: db}
 
 	if err := c.installFeed(); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 	if err := c.installArticle(); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 
