@@ -63,6 +63,23 @@ func handleStatusMessage(m model, msg statusMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleViewArticle toggles the article view overlay and sets the current
+// article ID.
+func handleViewArticle(m model) (tea.Model, tea.Cmd, bool) {
+	m.showArticle = !m.showArticle
+	selectedItem := m.articlesList.SelectedItem()
+	if selectedItem == nil {
+		return m, nil, true
+	}
+	m.currentArticleID = selectedItem.(articleItem).article.ID
+	if err := m.db.MarkArticleAsRead(m.currentArticleID); err != nil {
+		return m, func() tea.Msg {
+			return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
+		}, true
+	}
+	return m, nil, true
+}
+
 // handleOpenArticle marks the article as read and opens the link in the browser.
 func handleOpenArticle(m model) (tea.Model, tea.Cmd, bool) {
 	sel := m.articlesList.SelectedItem()
@@ -70,21 +87,22 @@ func handleOpenArticle(m model) (tea.Model, tea.Cmd, bool) {
 		return m, nil, true
 	}
 	ai := sel.(articleItem)
-	if ai.article.Link != "" {
-		if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
-			return m, func() tea.Msg {
-				return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
-			}, true
-		}
-		utils.OpenURL(ai.article.Link)
-		return m, tea.Batch(
-			fetchArticles(m.db, m.currentFeedID),
-			fetchFeeds(m.db),
-		), true
+	if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
+		return m, func() tea.Msg {
+			return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
+		}, true
 	}
-	return m, nil, true
+	utils.OpenURL(ai.article.Link)
+	return m, tea.Batch(
+		fetchArticles(m.db, m.currentFeedID),
+		fetchFeeds(m.db),
+	), true
 }
 
+// handkleKeypress processes keypresses.
+// Returns the updated model, any command to run, and a boolean indicating
+// whether the keypress was handled (true) or should be processed by the
+// focused pane (false).
 func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 	// Global quit (ctrl+c fires regardless of pane or filter state)
 	if key.Matches(msg, m.keys.Quit) && msg.String() == "ctrl+c" {
@@ -125,8 +143,6 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 		}
 
 		switch {
-		case key.Matches(msg, m.keys.Quit):
-			return m, func() tea.Msg { return tea.Quit() }, true
 		case key.Matches(msg, m.keys.OpenFeed):
 			sel := m.feedsList.SelectedItem()
 			if sel == nil {
@@ -160,19 +176,11 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 		}
 
 		switch {
-		case key.Matches(msg, m.keys.Quit):
-			return m, func() tea.Msg { return tea.Quit() }, true
 		case key.Matches(msg, m.keys.Back):
 			m.focusedPane = paneFeeds
 			return m, nil, true
 		case key.Matches(msg, m.keys.ViewArticle):
-			m.showArticle = !m.showArticle
-			selectedItem := m.articlesList.SelectedItem()
-			if selectedItem == nil {
-				return m, nil, true
-			}
-			m.currentArticleID = selectedItem.(articleItem).article.ID
-			return m, nil, true
+			return handleViewArticle(m)
 		case key.Matches(msg, m.keys.OpenArticle):
 			return handleOpenArticle(m)
 		case key.Matches(msg, m.keys.MarkAsRead):

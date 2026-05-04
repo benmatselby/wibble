@@ -1,0 +1,32 @@
+package tui
+
+import "github.com/benmatselby/wibble/pkg/models"
+
+type articlesLoadedMsg struct {
+	articles []models.Article
+	err      error
+}
+
+type feedsLoadedMsg struct {
+	feeds []models.Feed
+	err   error
+}
+
+type statusLevel int
+
+const (
+	statusInfo  statusLevel = iota
+	statusError statusLevel = iota
+)
+
+// statusMsg sets the text shown in the status bar.
+type statusMsg struct {
+	text  string
+	level statusLevel
+}
+
+// clearStatusMsg clears the status bar. A version field guards against stale
+// timers clearing a newer message.
+type clearStatusMsg struct {
+	version int
+}
