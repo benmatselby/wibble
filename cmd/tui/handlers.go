@@ -63,6 +63,28 @@ func handleStatusMessage(m model, msg statusMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleOpenArticle marks the article as read and opens the link in the browser.
+func handleOpenArticle(m model) (tea.Model, tea.Cmd, bool) {
+	sel := m.articlesList.SelectedItem()
+	if sel == nil {
+		return m, nil, true
+	}
+	ai := sel.(articleItem)
+	if ai.article.Link != "" {
+		if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
+			return m, func() tea.Msg {
+				return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
+			}, true
+		}
+		utils.OpenURL(ai.article.Link)
+		return m, tea.Batch(
+			fetchArticles(m.db, m.currentFeedID),
+			fetchFeeds(m.db),
+		), true
+	}
+	return m, nil, true
+}
+
 func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 	// Global quit (ctrl+c fires regardless of pane or filter state)
 	if key.Matches(msg, m.keys.Quit) && msg.String() == "ctrl+c" {
@@ -87,8 +109,12 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 	if m.showArticle {
 		if key.Matches(msg, m.keys.Back) {
 			m.showArticle = false
+			return m, nil, true
 		}
-		return m, nil, true
+
+		if key.Matches(msg, m.keys.OpenArticle) {
+			return handleOpenArticle(m)
+		}
 	}
 
 	switch m.focusedPane {
@@ -148,24 +174,7 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			m.currentArticleID = selectedItem.(articleItem).article.ID
 			return m, nil, true
 		case key.Matches(msg, m.keys.OpenArticle):
-			sel := m.articlesList.SelectedItem()
-			if sel == nil {
-				return m, nil, true
-			}
-			ai := sel.(articleItem)
-			if ai.article.Link != "" {
-				if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
-					return m, func() tea.Msg {
-						return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
-					}, true
-				}
-				utils.OpenURL(ai.article.Link)
-				return m, tea.Batch(
-					fetchArticles(m.db, m.currentFeedID),
-					fetchFeeds(m.db),
-				), true
-			}
-			return m, nil, true
+			return handleOpenArticle(m)
 		case key.Matches(msg, m.keys.MarkAsRead):
 			sel := m.articlesList.SelectedItem()
 			if sel == nil {
