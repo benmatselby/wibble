@@ -82,19 +82,19 @@ CREATE TABLE IF NOT EXISTS articles (
 
 // AddFeed inserts a new feed into the database and returns the model
 func (c *SQLiteClient) AddFeed(feed models.Feed) (models.Feed, error) {
-	_, err := c.db.ExecContext(context.Background(),
-		"INSERT OR IGNORE INTO feeds (url, title, added_at, sort_index) VALUES (?, ?, ?, ?)",
-		feed.URL, feed.Title, feed.AddedAt, feed.SortIndex)
-	if err != nil {
-		return feed, fmt.Errorf("failed to insert feed: %v", err)
-	}
+	query := `
+INSERT INTO feeds (url, title, added_at, sort_index)
+VALUES (?, ?, ?, ?)
+ON CONFLICT(url) DO UPDATE SET url=url
+RETURNING id, url, title, added_at, sort_index;
+`
 
 	var result models.Feed
-	err = c.db.QueryRowContext(context.Background(),
-		"SELECT id, url, title, added_at, sort_index FROM feeds WHERE url = ?",
-		feed.URL).Scan(&result.ID, &result.URL, &result.Title, &result.AddedAt, &result.SortIndex)
-	if err != nil {
-		return feed, fmt.Errorf("failed to retrieve feed after insert: %v", err)
+	ctx := context.Background()
+	if err := c.
+		db.QueryRowContext(ctx, query, feed.URL, feed.Title, feed.AddedAt, feed.SortIndex).
+		Scan(&result.ID, &result.URL, &result.Title, &result.AddedAt, &result.SortIndex); err != nil {
+		return feed, fmt.Errorf("failed to insert feed: %v", err)
 	}
 
 	return result, nil
