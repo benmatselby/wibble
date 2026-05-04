@@ -1,6 +1,6 @@
 # Wibble
 
-![Captain Blackadder](./docs/wibble.png)
+![Captain Blackadder](./docs/wibble.jpg)
 
 A simple TUI for RSS Feeds. It has the following features:
 
