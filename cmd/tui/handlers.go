@@ -1,0 +1,174 @@
+package tui
+
+import (
+	"fmt"
+	"time"
+
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"github.com/benmatselby/wibble/pkg/utils"
+)
+
+func handleFeedsLoaded(msg feedsLoadedMsg, m model) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		return m, func() tea.Msg {
+			return statusMsg{text: fmt.Sprintf("Failed to load feeds: %v", msg.err), level: statusError}
+		}
+	}
+	items := make([]list.Item, len(msg.feeds))
+	for i, f := range msg.feeds {
+		items[i] = feedItem{feed: f}
+	}
+	cmd := m.feedsList.SetItems(items)
+	return m, cmd
+}
+
+func handleArticlesLoaded(msg articlesLoadedMsg, m model) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
+		// Show the error in the articles list title temporarily
+		m.articlesTitle = fmt.Sprintf("Error: %v", msg.err)
+		return m, nil
+	}
+	items := make([]list.Item, len(msg.articles))
+	for i, e := range msg.articles {
+		items[i] = articleItem{article: e}
+	}
+	cmd := m.articlesList.SetItems(items)
+	if len(items) == 0 {
+		m.articlesTitle = "Articles (none)"
+	} else {
+		m.articlesTitle = fmt.Sprintf("Articles (%d)", len(items))
+	}
+	m.focusedPane = paneArticles
+	return m, cmd
+}
+
+func handleClearStatusMessage(msg clearStatusMsg, m model) (tea.Model, tea.Cmd) {
+	if msg.version == m.statusVersion {
+		m.status = nil
+	}
+	return m, nil
+}
+
+func handleStatusMessage(m model, msg statusMsg) (tea.Model, tea.Cmd) {
+	m.status = &msg
+	if msg.level == statusError {
+		m.statusVersion++
+		v := m.statusVersion
+		return m, tea.Tick(20*time.Second, func(_ time.Time) tea.Msg {
+			return clearStatusMsg{version: v}
+		})
+	}
+	return m, nil
+}
+
+func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
+	// Global quit (ctrl+c fires regardless of pane or filter state)
+	if key.Matches(msg, m.keys.Quit) && msg.String() == "ctrl+c" {
+		return m, func() tea.Msg { return tea.Quit() }, true
+	}
+
+	// Toggle help overlay
+	if key.Matches(msg, m.keys.Help) {
+		m.showHelp = !m.showHelp
+		return m, nil, true
+	}
+
+	// Dismiss help overlay with esc
+	if m.showHelp {
+		if msg.String() == "esc" {
+			m.showHelp = false
+		}
+		return m, nil, true
+	}
+
+	switch m.focusedPane {
+	case paneFeeds:
+		// Don't intercept filter keys
+		if m.feedsList.FilterState() == list.Filtering {
+			break
+		}
+
+		switch {
+		case key.Matches(msg, m.keys.Quit):
+			return m, func() tea.Msg { return tea.Quit() }, true
+		case key.Matches(msg, m.keys.OpenFeed):
+			sel := m.feedsList.SelectedItem()
+			if sel == nil {
+				return m, nil, true
+			}
+			fi := sel.(feedItem)
+			m.currentFeedID = fi.feed.ID
+			m.articlesTitle = "Loading..."
+			_ = m.articlesList.SetItems([]list.Item{})
+			return m, fetchArticles(m.db, fi.feed.ID), true
+
+		case key.Matches(msg, m.keys.MarkAllAsRead):
+			sel := m.feedsList.SelectedItem()
+			if sel == nil {
+				return m, nil, true
+			}
+			fi := sel.(feedItem)
+			if err := m.db.MarkArticlesAsRead(fi.feed.ID); err != nil {
+				return m, func() tea.Msg {
+					return statusMsg{text: fmt.Sprintf("Error marking feed as read: %v", err), level: statusError}
+				}, true
+			}
+			return m, tea.Batch(
+				fetchFeeds(m.db),
+			), true
+		}
+
+	case paneArticles:
+		if m.articlesList.FilterState() == list.Filtering {
+			break
+		}
+
+		switch {
+		case key.Matches(msg, m.keys.Quit):
+			return m, func() tea.Msg { return tea.Quit() }, true
+		case key.Matches(msg, m.keys.Back):
+			m.focusedPane = paneFeeds
+			return m, nil, true
+		case key.Matches(msg, m.keys.OpenArticle):
+			sel := m.articlesList.SelectedItem()
+			if sel == nil {
+				return m, nil, true
+			}
+			ai := sel.(articleItem)
+			if ai.article.Link != "" {
+				if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
+					return m, func() tea.Msg {
+						return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
+					}, true
+				}
+				utils.OpenURL(ai.article.Link)
+				return m, tea.Batch(
+					fetchArticles(m.db, m.currentFeedID),
+					fetchFeeds(m.db),
+				), true
+			}
+			return m, nil, true
+		case key.Matches(msg, m.keys.MarkAsRead):
+			sel := m.articlesList.SelectedItem()
+			if sel == nil {
+				return m, nil, true
+			}
+			ai := sel.(articleItem)
+			if ai.article.Link != "" {
+				if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
+					return m, func() tea.Msg {
+						return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
+					}, true
+				}
+				return m, tea.Batch(
+					fetchArticles(m.db, m.currentFeedID),
+					fetchFeeds(m.db),
+				), true
+			}
+			return m, nil, true
+		}
+	}
+	return nil, nil, false
+}

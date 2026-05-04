@@ -1,0 +1,9 @@
+# Binaries
+wibble
+
+# Tools
+coverage.out
+*code-review.txt
+
+# Caches
+build
