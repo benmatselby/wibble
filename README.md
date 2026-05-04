@@ -6,8 +6,18 @@ A simple TUI for RSS Feeds. It has the following features:
 
 - Register feeds via a configuration file.
 - Mark articles as read.
-- Override all the colours used via the configuration file. See (`examples`)
+- Override all the colours used via the configuration file.
 - Refresh feeds every 10 minutes (configurable).
+
+Rose Pine Day
+
+![Rose Pine Day](./docs/rose-pine-day.png)
+
+Rose Pine Night
+
+![Rose Pine Night](./docs/rose-pine-night.png)
+
+You can theme it however you like, see [docs/examples/](./docs/examples/) for other themes.
 
 ## Requirements
 
