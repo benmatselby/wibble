@@ -242,6 +242,35 @@ func TestGetArticlesByFeedID_OnlyReturnsFeedArticles(t *testing.T) {
 	}
 }
 
+func TestGetArticleID(t *testing.T) {
+	c := newTestClient(t)
+
+	feed, err := c.AddFeed(models.Feed{
+		URL:     "https://example.com/feed",
+		AddedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("AddFeed: %v", err)
+	}
+
+	if err := c.AddArticle(models.Article{FeedID: feed.ID, Title: "New Blackadder season", Link: "https://example.com/older"}); err != nil {
+		t.Fatalf("AddArticle: %v", err)
+	}
+
+	article, err := c.GetArticleByID(1)
+	if err != nil {
+		t.Fatalf("GetArticleByID: %v", err)
+	}
+
+	if article == nil {
+		t.Fatal("expected article, got nil")
+	}
+
+	if article.Title != "New Blackadder season" {
+		t.Errorf("expected title 'New Blackadder season', got %q", article.Title)
+	}
+}
+
 func TestMarkArticleAsRead(t *testing.T) {
 	c := newTestClient(t)
 

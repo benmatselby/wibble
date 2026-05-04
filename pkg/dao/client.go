@@ -16,6 +16,7 @@ type DaoClient interface {
 	// Articles
 	AddArticle(article models.Article) error
 	GetArticlesByFeedID(feedID int64) ([]models.Article, error)
+	GetArticleByID(articleID int64) (*models.Article, error)
 	MarkArticleAsRead(articleID int64) error
 	MarkArticlesAsRead(feedID int64) error
 

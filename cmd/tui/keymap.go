@@ -15,12 +15,14 @@ type KeyMap struct {
 
 	// Articles pane
 	MarkAsRead  key.Binding
+	ViewArticle key.Binding
 	OpenArticle key.Binding
 	Back        key.Binding
 }
 
 // DefaultKeyMap is the out-of-the-box keybinding configuration.
 var DefaultKeyMap = KeyMap{
+	// Global
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "quit"),
@@ -29,6 +31,8 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("?"),
 		key.WithHelp("?", "show keymaps"),
 	),
+
+	// Feeds pane
 	OpenFeed: key.NewBinding(
 		key.WithKeys("enter", "right", "l"),
 		key.WithHelp("enter/→", "open feed"),
@@ -37,13 +41,19 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("R"),
 		key.WithHelp("R", "mark feed as read"),
 	),
+
+	// Articles pane
 	MarkAsRead: key.NewBinding(
 		key.WithKeys("r"),
 		key.WithHelp("r", "mark article as read"),
 	),
+	ViewArticle: key.NewBinding(
+		key.WithKeys("enter", "right", "l"),
+		key.WithHelp("enter/→", "view article"),
+	),
 	OpenArticle: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "open link"),
+		key.WithKeys("o"),
+		key.WithHelp("o", "open link"),
 	),
 	Back: key.NewBinding(
 		key.WithKeys("esc", "left", "h", "backspace"),

@@ -6,6 +6,8 @@ A simple TUI for RSS Feeds. It has the following features:
 
 - Register feeds via a configuration file.
 - Mark articles as read.
+- Open an article in the browser.
+- Open a modal view of the article summary in the application.
 - Override all the colours used via the configuration file.
 - Refresh feeds every 10 minutes (configurable).
 

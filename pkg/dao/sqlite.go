@@ -169,6 +169,28 @@ func (c *SQLiteClient) GetArticlesByFeedID(feedID int64) ([]models.Article, erro
 	return articles, nil
 }
 
+// GetArticleByID retrieves a single article by its ID from the database.
+func (c *SQLiteClient) GetArticleByID(articleID int64) (*models.Article, error) {
+	rows, err := c.db.QueryContext(context.Background(),
+		"SELECT id, feed_id, title, link, published, summary, is_read FROM articles WHERE id = ?",
+		articleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to getquery article: %v", err)
+	}
+	defer rows.Close()
+
+	var article models.Article
+	if rows.Next() {
+		if err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.Link, &article.Published, &article.Summary, &article.IsRead); err != nil {
+			return nil, fmt.Errorf("failed to get article row: %v", err)
+		}
+	} else {
+		return nil, fmt.Errorf("no rows returned")
+	}
+
+	return &article, nil
+}
+
 // MarkArticleAsRead updates the read status of an article to true in the database.
 func (c *SQLiteClient) MarkArticleAsRead(articleID int64) error {
 	_, err := c.db.ExecContext(context.Background(), "UPDATE articles SET is_read = 1 WHERE id = ?", articleID)

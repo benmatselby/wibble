@@ -77,8 +77,16 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 
 	// Dismiss help overlay with esc
 	if m.showHelp {
-		if msg.String() == "esc" {
+		if key.Matches(msg, m.keys.Back) {
 			m.showHelp = false
+		}
+		return m, nil, true
+	}
+
+	// Dismiss view article overlay with esc
+	if m.showArticle {
+		if key.Matches(msg, m.keys.Back) {
+			m.showArticle = false
 		}
 		return m, nil, true
 	}
@@ -130,6 +138,14 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			return m, func() tea.Msg { return tea.Quit() }, true
 		case key.Matches(msg, m.keys.Back):
 			m.focusedPane = paneFeeds
+			return m, nil, true
+		case key.Matches(msg, m.keys.ViewArticle):
+			m.showArticle = !m.showArticle
+			selectedItem := m.articlesList.SelectedItem()
+			if selectedItem == nil {
+				return m, nil, true
+			}
+			m.currentArticleID = selectedItem.(articleItem).article.ID
 			return m, nil, true
 		case key.Matches(msg, m.keys.OpenArticle):
 			sel := m.articlesList.SelectedItem()
