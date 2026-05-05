@@ -49,26 +49,6 @@ type model struct {
 	status           *statusMsg
 }
 
-func (m model) Init() tea.Cmd {
-	return nil
-}
-
-// fetchArticles is a Bubbletea command that loads articles for a given feed.
-func fetchArticles(db dao.DaoClient, feedID int64) tea.Cmd {
-	return func() tea.Msg {
-		articles, err := db.GetArticlesByFeedID(feedID)
-		return articlesLoadedMsg{articles: articles, err: err}
-	}
-}
-
-// fetchFeeds is a Bubbletea command that reloads all feeds from the database.
-func fetchFeeds(db dao.DaoClient) tea.Cmd {
-	return func() tea.Msg {
-		feeds, err := db.GetFeeds()
-		return feedsLoadedMsg{feeds: feeds, err: err}
-	}
-}
-
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.BackgroundColorMsg:
@@ -96,7 +76,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleStatusMessage(m, msg)
 
 	case tea.KeyPressMsg:
-		// Global quit
 		m1, c, shouldReturn := handleKeypress(msg, m)
 		if shouldReturn {
 			return m1, c
@@ -144,96 +123,6 @@ func (m model) panelWidths() (int, int) {
 	feedWidth = max(feedWidth, 20)
 	articleWidth := total - feedWidth
 	return feedWidth, articleWidth
-}
-
-func (m model) View() tea.View {
-	if !m.ready {
-		return tea.NewView("\n  Loading...")
-	}
-
-	feedsW, articlesW := m.panelWidths()
-
-	// ── Feeds panel ───────────────────────────────────────────────────────────
-	feedsTitle := m.styles.focusedTitle.Width(feedsW - 4).Render("Feeds")
-	feedsBorder := m.styles.focusedBorder
-	if m.focusedPane != paneFeeds {
-		feedsTitle = m.styles.unfocusedTitle.Width(feedsW - 4).Render("Feeds")
-		feedsBorder = m.styles.unfocusedBorder
-	}
-	feedsContent := feedsBorder.
-		Width(feedsW).
-		Render(lipgloss.JoinVertical(lipgloss.Left, feedsTitle, m.feedsList.View()))
-
-	// ── Articles panel ────────────────────────────────────────────────────────
-	articlesTitle := m.styles.unfocusedTitle.Width(articlesW - 4).Render(m.articlesTitle)
-	articlesBorder := m.styles.unfocusedBorder
-	if m.focusedPane == paneArticles {
-		articlesTitle = m.styles.focusedTitle.Width(articlesW - 4).Render(m.articlesTitle)
-		articlesBorder = m.styles.focusedBorder
-	}
-	articlesContent := articlesBorder.
-		Width(articlesW).
-		Render(lipgloss.JoinVertical(lipgloss.Left, articlesTitle, m.articlesList.View()))
-
-	// ── Layout ────────────────────────────────────────────────────────────────
-	panels := lipgloss.JoinHorizontal(lipgloss.Top, feedsContent, articlesContent)
-
-	// ── Help bar ──────────────────────────────────────────────────────────────
-	var help string
-	switch m.focusedPane {
-	case paneFeeds:
-		help = m.styles.help.Render(fmt.Sprintf(
-			"j/k navigate • %s %s • / filter • %s %s • %s %s",
-			m.keys.OpenFeed.Help().Key, m.keys.OpenFeed.Help().Desc,
-			m.keys.Help.Help().Key, m.keys.Help.Help().Desc,
-			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
-		))
-	case paneArticles:
-		help = m.styles.help.Render(fmt.Sprintf(
-			"j/k navigate • %s %s • %s %s • / filter • %s %s • %s %s",
-			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
-			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
-			m.keys.Help.Help().Key, m.keys.Help.Help().Desc,
-			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
-		))
-	case paneArticle:
-		// noop
-	}
-
-	// ── Status bar ────────────────────────────────────────────────────────────
-	var statusBar string
-	if m.status != nil {
-		style := m.styles.statusInfo
-		if m.status.level == statusError {
-			style = m.styles.statusError
-		}
-		statusBar = style.Render(m.status.text)
-	}
-
-	v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left, panels, help, statusBar))
-	v.AltScreen = true
-
-	// -- Help view -------------------------------------------------------------
-	if m.showHelp {
-		v = tea.NewView(lipgloss.Place(
-			m.width, m.height,
-			lipgloss.Center, lipgloss.Center,
-			m.renderHelpModal(),
-		))
-		v.AltScreen = true
-	}
-
-	// -- View article view -----------------------------------------------------
-	if m.focusedPane == paneArticle {
-		v = tea.NewView(lipgloss.Place(
-			m.width, m.height,
-			lipgloss.Center, lipgloss.Center,
-			m.renderArticleModal(),
-		))
-		v.AltScreen = true
-	}
-
-	return v
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
