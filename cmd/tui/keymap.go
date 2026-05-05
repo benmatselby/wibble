@@ -7,7 +7,6 @@ import "charm.land/bubbles/v2/key"
 type KeyMap struct {
 	// Global
 	Quit       key.Binding
-	Help       key.Binding
 	ListDown   key.Binding
 	ListUp     key.Binding
 	ListFilter key.Binding
@@ -29,10 +28,6 @@ var DefaultKeyMap = KeyMap{
 	Quit: key.NewBinding(
 		key.WithKeys("q", "ctrl+c"),
 		key.WithHelp("q", "quit"),
-	),
-	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "show keymaps"),
 	),
 	ListDown: key.NewBinding(
 		key.WithKeys("j"),

@@ -131,20 +131,6 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 		return m, func() tea.Msg { return tea.Quit() }, true
 	}
 
-	// Toggle help overlay
-	if key.Matches(msg, m.keys.Help) {
-		m.showHelp = !m.showHelp
-		return m, nil, true
-	}
-
-	// Dismiss help overlay with esc
-	if m.showHelp {
-		if key.Matches(msg, m.keys.Back) {
-			m.showHelp = false
-		}
-		return m, nil, true
-	}
-
 	switch m.focusedPane {
 	case paneFeeds:
 		// Don't intercept filter keys
