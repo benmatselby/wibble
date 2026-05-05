@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -44,22 +43,8 @@ func handleArticlesLoaded(msg articlesLoadedMsg, m model) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func handleClearStatusMessage(msg clearStatusMsg, m model) (tea.Model, tea.Cmd) {
-	if msg.version == m.statusVersion {
-		m.status = nil
-	}
-	return m, nil
-}
-
 func handleStatusMessage(m model, msg statusMsg) (tea.Model, tea.Cmd) {
 	m.status = &msg
-	if msg.level == statusError {
-		m.statusVersion++
-		v := m.statusVersion
-		return m, tea.Tick(20*time.Second, func(_ time.Time) tea.Msg {
-			return clearStatusMsg{version: v}
-		})
-	}
 	return m, nil
 }
 
@@ -67,6 +52,7 @@ func handleStatusMessage(m model, msg statusMsg) (tea.Model, tea.Cmd) {
 // article ID.
 func handleViewArticle(m model) (tea.Model, tea.Cmd, bool) {
 	m.showArticle = !m.showArticle
+
 	selectedItem := m.articlesList.SelectedItem()
 	if selectedItem == nil {
 		return m, nil, true
