@@ -48,6 +48,19 @@ func handleStatusMessage(m model, msg statusMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func handleOpenFeed(m model) (tea.Model, tea.Cmd, bool) {
+	sel := m.feedsList.SelectedItem()
+	if sel == nil {
+		return m, nil, true
+	}
+	fi := sel.(feedItem)
+	m.currentFeedID = fi.feed.ID
+	m.articlesList.Select(0)
+	m.articlesTitle = "Loading..."
+	_ = m.articlesList.SetItems([]list.Item{})
+	return m, fetchArticles(m.db, fi.feed.ID), true
+}
+
 // handleViewArticle toggles the article view overlay and sets the current
 // article ID.
 func handleViewArticle(m model) (tea.Model, tea.Cmd, bool) {
@@ -140,17 +153,7 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 
 		switch {
 		case key.Matches(msg, m.keys.OpenFeed):
-			sel := m.feedsList.SelectedItem()
-			if sel == nil {
-				return m, nil, true
-			}
-			fi := sel.(feedItem)
-			m.currentFeedID = fi.feed.ID
-			m.articlesList.Select(0)
-			m.articlesTitle = "Loading..."
-			_ = m.articlesList.SetItems([]list.Item{})
-			return m, fetchArticles(m.db, fi.feed.ID), true
-
+			return handleOpenFeed(m)
 		case key.Matches(msg, m.keys.MarkAllAsRead):
 			return handleMarkAllAsRead(m)
 		}
@@ -180,7 +183,6 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 				fetchFeeds(m.db),
 				fetchArticles(m.db, m.currentFeedID),
 			), true
-			// return m, nil, true
 		case key.Matches(msg, m.keys.OpenArticle):
 			return handleOpenArticle(m)
 		}
