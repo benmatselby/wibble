@@ -45,7 +45,6 @@ type model struct {
 	width            int
 	height           int
 	ready            bool
-	showHelp         bool
 	status           *statusMsg
 }
 
