@@ -146,6 +146,7 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			}
 			fi := sel.(feedItem)
 			m.currentFeedID = fi.feed.ID
+			m.articlesList.Select(0)
 			m.articlesTitle = "Loading..."
 			_ = m.articlesList.SetItems([]list.Item{})
 			return m, fetchArticles(m.db, fi.feed.ID), true
