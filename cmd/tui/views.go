@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os"
 
 	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
@@ -49,12 +48,12 @@ func (m model) renderArticleModal() string {
 	if err != nil {
 		return err.Error()
 	}
-	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
 
 	theme := "light"
-	if isDark {
+	if m.isDark {
 		theme = "dark"
 	}
+
 	converter := md.NewConverter("", true, nil)
 	markdown, _ := converter.ConvertString(article.Summary)
 

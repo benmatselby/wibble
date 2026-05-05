@@ -51,7 +51,7 @@ func handleStatusMessage(m model, msg statusMsg) (tea.Model, tea.Cmd) {
 // handleViewArticle toggles the article view overlay and sets the current
 // article ID.
 func handleViewArticle(m model) (tea.Model, tea.Cmd, bool) {
-	m.showArticle = !m.showArticle
+	m.focusedPane = paneArticle
 
 	selectedItem := m.articlesList.SelectedItem()
 	if selectedItem == nil {
@@ -107,18 +107,6 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			m.showHelp = false
 		}
 		return m, nil, true
-	}
-
-	// Dismiss view article overlay with esc
-	if m.showArticle {
-		if key.Matches(msg, m.keys.Back) {
-			m.showArticle = false
-			return m, nil, true
-		}
-
-		if key.Matches(msg, m.keys.OpenArticle) {
-			return handleOpenArticle(m)
-		}
 	}
 
 	switch m.focusedPane {
@@ -187,6 +175,15 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 				), true
 			}
 			return m, nil, true
+		}
+
+	case paneArticle:
+		switch {
+		case key.Matches(msg, m.keys.Back):
+			m.focusedPane = paneArticles
+			return m, nil, true
+		case key.Matches(msg, m.keys.OpenArticle):
+			return handleOpenArticle(m)
 		}
 	}
 	return nil, nil, false

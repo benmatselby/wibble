@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/benmatselby/wibble/pkg/models"
+	"github.com/benmatselby/wibble/pkg/utils"
 	"github.com/spf13/viper"
 )
 
@@ -46,6 +47,8 @@ type SQLiteClient struct {
 
 // installFeed initializes the feeds table in the SQLite database.
 func (c *SQLiteClient) installFeed() error {
+	utils.Log("installFeed started")
+
 	_, err := c.db.ExecContext(context.Background(), `
 CREATE TABLE IF NOT EXISTS feeds (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -58,11 +61,14 @@ CREATE TABLE IF NOT EXISTS feeds (
 		return fmt.Errorf("failed to create feeds table: %v", err)
 	}
 
+	utils.Log("installFeed finished")
 	return nil
 }
 
 // installArticle initializes the articles table in the SQLite database.
 func (c *SQLiteClient) installArticle() error {
+	utils.Log("installArticle started")
+
 	_, err := c.db.ExecContext(context.Background(), `
 CREATE TABLE IF NOT EXISTS articles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,11 +85,14 @@ CREATE TABLE IF NOT EXISTS articles (
 		return fmt.Errorf("failed to create articles table: %v", err)
 	}
 
+	utils.Log("installArticle ended")
 	return nil
 }
 
 // AddFeed inserts a new feed into the database and returns the model
 func (c *SQLiteClient) AddFeed(feed models.Feed) (models.Feed, error) {
+	utils.Log("AddFeed started")
+
 	query := `
 INSERT INTO feeds (url, title, added_at, sort_index)
 VALUES (?, ?, ?, ?)
@@ -99,11 +108,15 @@ RETURNING id, url, title, added_at, sort_index;
 		return feed, fmt.Errorf("failed to insert feed: %v", err)
 	}
 
+	utils.Log("AddFeed finished")
+
 	return result, nil
 }
 
 // GetFeeds retrieves all feeds from the database.
 func (c *SQLiteClient) GetFeeds() ([]models.Feed, error) {
+	utils.Log("GetFeeds started")
+
 	rows, err := c.db.QueryContext(context.Background(), `
 SELECT f.id, f.url, f.title, f.added_at,
        COUNT(a.id) AS total_count,
@@ -130,11 +143,14 @@ ORDER BY sort_index`)
 		return nil, fmt.Errorf("error iterating over feeds: %v", err)
 	}
 
+	utils.Log("GetFeeds finished")
 	return feeds, nil
 }
 
 // AddArticle inserts a new article into the database.
 func (c *SQLiteClient) AddArticle(article models.Article) error {
+	utils.Log(fmt.Sprintf("AddArticle started for feed ID %d", article.FeedID))
+
 	_, err := c.db.ExecContext(context.Background(),
 		"INSERT OR IGNORE INTO articles (feed_id, title, link, published, summary) VALUES (?, ?, ?, ?, ?)",
 		article.FeedID, article.Title, article.Link, article.Published, article.Summary)
@@ -142,11 +158,14 @@ func (c *SQLiteClient) AddArticle(article models.Article) error {
 		return fmt.Errorf("failed to insert article: %v", err)
 	}
 
+	utils.Log(fmt.Sprintf("AddArticle finished for feed ID %d", article.FeedID))
 	return nil
 }
 
 // GetArticlesByFeedID retrieves all articles for a given feed from the database, ordered by published date descending.
 func (c *SQLiteClient) GetArticlesByFeedID(feedID int64) ([]models.Article, error) {
+	utils.Log(fmt.Sprintf("GetArticlesByFeedID started for feed ID %d", feedID))
+
 	rows, err := c.db.QueryContext(context.Background(),
 		"SELECT id, feed_id, title, link, published, summary, is_read FROM articles WHERE feed_id = ? ORDER BY published DESC",
 		feedID)
@@ -168,11 +187,14 @@ func (c *SQLiteClient) GetArticlesByFeedID(feedID int64) ([]models.Article, erro
 		return nil, fmt.Errorf("error iterating over articles: %v", err)
 	}
 
+	utils.Log(fmt.Sprintf("GetArticlesByFeedID finished for feed ID %d", feedID))
 	return articles, nil
 }
 
 // GetArticleByID retrieves a single article by its ID from the database.
 func (c *SQLiteClient) GetArticleByID(articleID int64) (*models.Article, error) {
+	utils.Log(fmt.Sprintf("GetArticleByID started for article ID %d", articleID))
+
 	rows, err := c.db.QueryContext(context.Background(),
 		"SELECT id, feed_id, title, link, published, summary, is_read FROM articles WHERE id = ?",
 		articleID)
@@ -190,33 +212,43 @@ func (c *SQLiteClient) GetArticleByID(articleID int64) (*models.Article, error) 
 		return nil, fmt.Errorf("no rows returned")
 	}
 
+	utils.Log(fmt.Sprintf("GetArticleByID finished for article ID %d", articleID))
 	return &article, nil
 }
 
 // MarkArticleAsRead updates the read status of an article to true in the database.
 func (c *SQLiteClient) MarkArticleAsRead(articleID int64) error {
+	utils.Log(fmt.Sprintf("MarkArticleAsRead started for article ID %d", articleID))
+
 	_, err := c.db.ExecContext(context.Background(), "UPDATE articles SET is_read = 1 WHERE id = ?", articleID)
 	if err != nil {
 		return fmt.Errorf("failed to mark article ID %d as read: %v", articleID, err)
 	}
+
+	utils.Log(fmt.Sprintf("MarkArticleAsRead finished for article ID %d", articleID))
 	return nil
 }
 
 func (c *SQLiteClient) MarkArticlesAsRead(feedID int64) error {
+	utils.Log(fmt.Sprintf("MarkArticlesAsRead started for feed ID %d", feedID))
+
 	_, err := c.db.ExecContext(context.Background(), "UPDATE articles SET is_read = 1 WHERE feed_id = ?", feedID)
 	if err != nil {
 		return fmt.Errorf("failed to mark articles as read for feed ID %d: %v", feedID, err)
 	}
-
+	utils.Log(fmt.Sprintf("MarkArticlesAsRead finished for feed ID %d", feedID))
 	return nil
 }
 
 // Close closes the database connection.
 func (c *SQLiteClient) Close() error {
+	utils.Log("Close started")
 	if c.db != nil {
 		if err := c.db.Close(); err != nil {
 			return fmt.Errorf("failed to close database: %v", err)
 		}
 	}
+
+	utils.Log("Close finished")
 	return nil
 }

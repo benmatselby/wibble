@@ -24,6 +24,7 @@ type pane int
 const (
 	paneFeeds pane = iota
 	paneArticles
+	paneArticle
 )
 
 // ── Model ─────────────────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ type model struct {
 	focusedPane      pane
 	currentFeedID    int64
 	currentArticleID int64
+	isDark           bool
 	theme            theme.Theme
 	styles           styles
 	keys             KeyMap
@@ -44,7 +46,6 @@ type model struct {
 	height           int
 	ready            bool
 	showHelp         bool
-	showArticle      bool
 	status           *statusMsg
 }
 
@@ -71,7 +72,7 @@ func fetchFeeds(db dao.DaoClient) tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.BackgroundColorMsg:
-		m.styles = newStyles(m.theme, lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
+		m.styles = newStyles(m.theme, m.isDark)
 		m.readableDelegate.Styles = m.styles.listItem
 		m.readableDelegate.readItemTitleColor = m.styles.readItemTitle
 		m.feedsList.SetDelegate(m.readableDelegate)
@@ -114,6 +115,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newList, c := m.articlesList.Update(msg)
 		*m.articlesList = newList
 		cmd = c
+	case paneArticle:
+		// noop
 	}
 
 	return m, cmd
@@ -193,6 +196,8 @@ func (m model) View() tea.View {
 			m.keys.Help.Help().Key, m.keys.Help.Help().Desc,
 			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
+	case paneArticle:
+		// noop
 	}
 
 	// ── Status bar ────────────────────────────────────────────────────────────
@@ -219,7 +224,7 @@ func (m model) View() tea.View {
 	}
 
 	// -- View article view -----------------------------------------------------
-	if m.showArticle {
+	if m.focusedPane == paneArticle {
 		v = tea.NewView(lipgloss.Place(
 			m.width, m.height,
 			lipgloss.Center, lipgloss.Center,
@@ -245,7 +250,8 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 		feedItems[i] = feedItem{feed: f}
 	}
 
-	s := newStyles(t, lipgloss.HasDarkBackground(os.Stdin, os.Stdout))
+	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stdout)
+	s := newStyles(t, isDark)
 
 	listDelegate := list.NewDefaultDelegate()
 	listDelegate.ShowDescription = false
@@ -281,6 +287,7 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 		articlesTitle:    "Select a feed →",
 		readableDelegate: rd,
 		focusedPane:      paneFeeds,
+		isDark:           isDark,
 		theme:            t,
 		styles:           s,
 		keys:             DefaultKeyMap,
