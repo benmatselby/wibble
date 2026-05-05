@@ -14,53 +14,56 @@ func (m model) View() tea.View {
 		return tea.NewView("\n  Loading...")
 	}
 
-	feedsW, articlesW := m.panelWidths()
+	leftPanelWidth, rightPanelWidth := m.panelWidths()
 
-	// ── Feeds panel ───────────────────────────────────────────────────────────
-	feedsTitle := m.styles.focusedTitle.Width(feedsW - 4).Render("Feeds")
-	feedsBorder := m.styles.focusedBorder
-	if m.focusedPane != paneFeeds {
-		feedsTitle = m.styles.unfocusedTitle.Width(feedsW - 4).Render("Feeds")
-		feedsBorder = m.styles.unfocusedBorder
-	}
-	feedsContent := feedsBorder.
-		Width(feedsW).
-		Render(lipgloss.JoinVertical(lipgloss.Left, feedsTitle, m.feedsList.View()))
-
-	// ── Articles panel ────────────────────────────────────────────────────────
-	articlesTitle := m.styles.unfocusedTitle.Width(articlesW - 4).Render(m.articlesTitle)
-	articlesBorder := m.styles.unfocusedBorder
-	if m.focusedPane == paneArticles {
-		articlesTitle = m.styles.focusedTitle.Width(articlesW - 4).Render(m.articlesTitle)
-		articlesBorder = m.styles.focusedBorder
-	}
-	articlesContent := articlesBorder.
-		Width(articlesW).
-		Render(lipgloss.JoinVertical(lipgloss.Left, articlesTitle, m.articlesList.View()))
-
-	// ── Layout ────────────────────────────────────────────────────────────────
-	panels := lipgloss.JoinHorizontal(lipgloss.Top, feedsContent, articlesContent)
-
-	// ── Help bar ──────────────────────────────────────────────────────────────
 	var help string
+	var panels string
 	switch m.focusedPane {
 	case paneFeeds:
+		panels = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, leftPanelWidth, "Feeds", m.feedsList.View()),
+			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, rightPanelWidth, "Articles", m.articlesList.View()),
+		)
 		help = m.styles.help.Render(fmt.Sprintf(
-			"j/k navigate • %s %s • / filter • %s %s • %s %s",
+			"%s %s • %s %s • %s %s • %s %s • %s %s",
+			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
+			m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
 			m.keys.OpenFeed.Help().Key, m.keys.OpenFeed.Help().Desc,
 			m.keys.Help.Help().Key, m.keys.Help.Help().Desc,
 			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
 	case paneArticles:
+		panels = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, leftPanelWidth, "Feeds", m.feedsList.View()),
+			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, "Articles", m.articlesList.View()),
+		)
+
 		help = m.styles.help.Render(fmt.Sprintf(
-			"j/k navigate • %s %s • %s %s • / filter • %s %s • %s %s",
-			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
+			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
+			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
+			m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
 			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
+			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
 			m.keys.Help.Help().Key, m.keys.Help.Help().Desc,
 			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
 	case paneArticle:
-		// noop
+		title, content := m.renderArticleModal()
+		panels = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, leftPanelWidth, "Feeds", m.feedsList.View()),
+			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, title, content),
+		)
+
+		help = m.styles.help.Render(fmt.Sprintf(
+			"%s %s • %s %s •  %s %s • %s %s",
+			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
+			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
+			m.keys.Help.Help().Key, m.keys.Help.Help().Desc,
+			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
+		))
 	}
 
 	// ── Status bar ────────────────────────────────────────────────────────────
@@ -86,17 +89,17 @@ func (m model) View() tea.View {
 		v.AltScreen = true
 	}
 
-	// -- View article view -----------------------------------------------------
-	if m.focusedPane == paneArticle {
-		v = tea.NewView(lipgloss.Place(
-			m.width, m.height,
-			lipgloss.Center, lipgloss.Center,
-			m.renderArticleModal(),
-		))
-		v.AltScreen = true
-	}
-
 	return v
+}
+
+// renderPanel aims to essentially ensure all panels look the same, and make
+// the code cleaner
+func renderPanel(titleStyle, borderStyle lipgloss.Style, width int, title, content string) string {
+	panel := borderStyle.
+		Width(width).
+		Render(lipgloss.JoinVertical(lipgloss.Left, titleStyle.Width(width-4).Render(title), content))
+
+	return panel
 }
 
 // renderHelpModal returns a styled modal box listing all keybindings.
@@ -134,10 +137,10 @@ func (m model) renderHelpModal() string {
 }
 
 // renderArticleModal renders the current article for viewing in the app.
-func (m model) renderArticleModal() string {
+func (m model) renderArticleModal() (string, string) {
 	article, err := m.db.GetArticleByID(m.currentArticleID)
 	if err != nil {
-		return err.Error()
+		return "Error", err.Error()
 	}
 
 	theme := "light"
@@ -150,10 +153,5 @@ func (m model) renderArticleModal() string {
 
 	out, _ := glamour.Render(markdown, theme)
 
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		m.styles.focusedTitle.Render(article.Title),
-		out,
-	)
-
-	return m.styles.focusedBorder.Padding(1, 3).Render(content)
+	return article.Title, out
 }
