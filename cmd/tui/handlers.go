@@ -85,6 +85,42 @@ func handleOpenArticle(m model) (tea.Model, tea.Cmd, bool) {
 	), true
 }
 
+func handleMarkItemAsRead(m model) (tea.Model, tea.Cmd, bool) {
+	sel := m.articlesList.SelectedItem()
+	if sel == nil {
+		return m, nil, true
+	}
+	ai := sel.(articleItem)
+	if ai.article.Link != "" {
+		if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
+			return m, func() tea.Msg {
+				return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
+			}, true
+		}
+		return m, tea.Batch(
+			fetchArticles(m.db, m.currentFeedID),
+			fetchFeeds(m.db),
+		), true
+	}
+	return m, nil, true
+}
+
+func handleMarkAllAsRead(m model) (tea.Model, tea.Cmd, bool) {
+	sel := m.feedsList.SelectedItem()
+	if sel == nil {
+		return m, nil, true
+	}
+	fi := sel.(feedItem)
+	if err := m.db.MarkArticlesAsRead(fi.feed.ID); err != nil {
+		return m, func() tea.Msg {
+			return statusMsg{text: fmt.Sprintf("Error marking feed as read: %v", err), level: statusError}
+		}, true
+	}
+	return m, tea.Batch(
+		fetchFeeds(m.db),
+	), true
+}
+
 // handkleKeypress processes keypresses.
 // Returns the updated model, any command to run, and a boolean indicating
 // whether the keypress was handled (true) or should be processed by the
@@ -129,19 +165,7 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			return m, fetchArticles(m.db, fi.feed.ID), true
 
 		case key.Matches(msg, m.keys.MarkAllAsRead):
-			sel := m.feedsList.SelectedItem()
-			if sel == nil {
-				return m, nil, true
-			}
-			fi := sel.(feedItem)
-			if err := m.db.MarkArticlesAsRead(fi.feed.ID); err != nil {
-				return m, func() tea.Msg {
-					return statusMsg{text: fmt.Sprintf("Error marking feed as read: %v", err), level: statusError}
-				}, true
-			}
-			return m, tea.Batch(
-				fetchFeeds(m.db),
-			), true
+			return handleMarkAllAsRead(m)
 		}
 
 	case paneArticles:
@@ -158,30 +182,18 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 		case key.Matches(msg, m.keys.OpenArticle):
 			return handleOpenArticle(m)
 		case key.Matches(msg, m.keys.MarkAsRead):
-			sel := m.articlesList.SelectedItem()
-			if sel == nil {
-				return m, nil, true
-			}
-			ai := sel.(articleItem)
-			if ai.article.Link != "" {
-				if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
-					return m, func() tea.Msg {
-						return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
-					}, true
-				}
-				return m, tea.Batch(
-					fetchArticles(m.db, m.currentFeedID),
-					fetchFeeds(m.db),
-				), true
-			}
-			return m, nil, true
+			return handleMarkItemAsRead(m)
 		}
 
 	case paneArticle:
 		switch {
 		case key.Matches(msg, m.keys.Back):
 			m.focusedPane = paneArticles
-			return m, nil, true
+			return m, tea.Batch(
+				fetchFeeds(m.db),
+				fetchArticles(m.db, m.currentFeedID),
+			), true
+			// return m, nil, true
 		case key.Matches(msg, m.keys.OpenArticle):
 			return handleOpenArticle(m)
 		}
