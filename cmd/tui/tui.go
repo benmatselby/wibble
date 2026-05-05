@@ -46,7 +46,6 @@ type model struct {
 	showHelp         bool
 	showArticle      bool
 	status           *statusMsg
-	statusVersion    int
 }
 
 func (m model) Init() tea.Cmd {
@@ -94,9 +93,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusMsg:
 		return handleStatusMessage(m, msg)
-
-	case clearStatusMsg:
-		return handleClearStatusMessage(msg, m)
 
 	case tea.KeyPressMsg:
 		// Global quit
@@ -310,7 +306,8 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 		if err != nil {
 			p.Send(statusMsg{text: fmt.Sprintf("Sync failed: %v", err), level: statusError})
 		} else {
-			p.Send(statusMsg{text: "Sync complete", level: statusInfo})
+			when := fmt.Sprintf("Sync completed at %s", time.Now().Format("15:04:05"))
+			p.Send(statusMsg{text: when, level: statusInfo})
 		}
 	}
 

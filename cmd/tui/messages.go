@@ -24,9 +24,3 @@ type statusMsg struct {
 	text  string
 	level statusLevel
 }
-
-// clearStatusMsg clears the status bar. A version field guards against stale
-// timers clearing a newer message.
-type clearStatusMsg struct {
-	version int
-}
