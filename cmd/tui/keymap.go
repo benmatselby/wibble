@@ -6,8 +6,11 @@ import "charm.land/bubbles/v2/key"
 // per-instance customisation and to drive the help bar from binding metadata.
 type KeyMap struct {
 	// Global
-	Quit key.Binding
-	Help key.Binding
+	Quit       key.Binding
+	Help       key.Binding
+	ListDown   key.Binding
+	ListUp     key.Binding
+	ListFilter key.Binding
 
 	// Feeds pane
 	OpenFeed      key.Binding
@@ -31,11 +34,23 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("?"),
 		key.WithHelp("?", "show keymaps"),
 	),
+	ListDown: key.NewBinding(
+		key.WithKeys("j"),
+		key.WithHelp("j", "down"),
+	),
+	ListUp: key.NewBinding(
+		key.WithKeys("k"),
+		key.WithHelp("k", "up"),
+	),
+	ListFilter: key.NewBinding(
+		key.WithKeys("/"),
+		key.WithHelp("/", "filter"),
+	),
 
 	// Feeds pane
 	OpenFeed: key.NewBinding(
 		key.WithKeys("enter", "right", "l"),
-		key.WithHelp("enter/→", "open feed"),
+		key.WithHelp("enter/→/l", "open feed"),
 	),
 	MarkAllAsRead: key.NewBinding(
 		key.WithKeys("R"),
@@ -49,7 +64,7 @@ var DefaultKeyMap = KeyMap{
 	),
 	ViewArticle: key.NewBinding(
 		key.WithKeys("enter", "right", "l"),
-		key.WithHelp("enter/→", "view article"),
+		key.WithHelp("enter/→/l", "view article"),
 	),
 	OpenArticle: key.NewBinding(
 		key.WithKeys("o"),
@@ -57,6 +72,6 @@ var DefaultKeyMap = KeyMap{
 	),
 	Back: key.NewBinding(
 		key.WithKeys("esc", "left", "h", "backspace"),
-		key.WithHelp("esc/←", "back"),
+		key.WithHelp("esc/←/h", "back"),
 	),
 }
