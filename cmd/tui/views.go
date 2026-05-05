@@ -26,10 +26,11 @@ func (m model) View() tea.View {
 			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, rightPanelWidth, "Articles", m.articlesList.View()),
 		)
 		help = m.styles.help.Render(fmt.Sprintf(
-			"%s %s • %s %s • %s %s • %s %s",
+			"%s %s • %s %s • %s %s • %s %s • %s %s",
 			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
 			m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
 			m.keys.OpenFeed.Help().Key, m.keys.OpenFeed.Help().Desc,
+			m.keys.MarkAllAsRead.Help().Key, m.keys.MarkAllAsRead.Help().Desc,
 			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
 	case paneArticles:
@@ -40,11 +41,12 @@ func (m model) View() tea.View {
 		)
 
 		help = m.styles.help.Render(fmt.Sprintf(
-			"%s %s • %s %s • %s %s • %s %s • %s %s",
+			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
 			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
 			m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
 			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
 			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
+			m.keys.MarkAsRead.Help().Key, m.keys.MarkAsRead.Help().Desc,
 			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
 	case paneArticle:
