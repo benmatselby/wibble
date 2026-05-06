@@ -130,6 +130,7 @@ func handleMarkAllAsRead(m model) (tea.Model, tea.Cmd, bool) {
 		}, true
 	}
 	return m, tea.Batch(
+		fetchArticles(m.db, m.currentFeedID),
 		fetchFeeds(m.db),
 	), true
 }
@@ -173,6 +174,8 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			return handleOpenArticle(m)
 		case key.Matches(msg, m.keys.MarkAsRead):
 			return handleMarkItemAsRead(m)
+		case key.Matches(msg, m.keys.MarkAllAsRead):
+			return handleMarkAllAsRead(m)
 		}
 
 	case paneArticle:

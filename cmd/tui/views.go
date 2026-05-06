@@ -9,6 +9,9 @@ import (
 	md "github.com/JohannesKaufmann/html-to-markdown"
 )
 
+// View is called after every update and its return value is written to the
+// terminal. It's a pure function — it should only read from the model's state
+// and produce a string representation of the UI, with no side effects.
 func (m model) View() tea.View {
 	if !m.ready {
 		return tea.NewView("\n  Loading...")
