@@ -135,7 +135,7 @@ func handleMarkAllAsRead(m model) (tea.Model, tea.Cmd, bool) {
 	), true
 }
 
-// handkleKeypress processes keypresses.
+// handleKeypress processes keypresses.
 // Returns the updated model, any command to run, and a boolean indicating
 // whether the keypress was handled (true) or should be processed by the
 // focused pane (false).
