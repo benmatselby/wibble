@@ -76,6 +76,11 @@ func handleViewArticle(m model) (tea.Model, tea.Cmd, bool) {
 			return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
 		}, true
 	}
+
+	content := m.renderArticleModal()
+	m.articleViewport.SetContent(content)
+	m.articleViewport.GotoTop()
+
 	return m, nil, true
 }
 

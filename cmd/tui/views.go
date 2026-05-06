@@ -53,15 +53,15 @@ func (m model) View() tea.View {
 			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
 	case paneArticle:
-		title, content := m.renderArticleModal()
 		panels = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, leftPanelWidth, "Feeds", m.feedsList.View()),
-			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, title, content),
+			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, "Article", m.articleViewport.View()),
 		)
 
 		help = m.styles.help.Render(fmt.Sprintf(
-			"%s %s • %s %s •  %s %s",
+			"%s %s • %s %s • %s %s • %s %s",
+			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "scroll",
 			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
 			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
 			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
@@ -94,10 +94,10 @@ func renderPanel(titleStyle, borderStyle lipgloss.Style, width int, title, conte
 }
 
 // renderArticleModal renders the current article for viewing in the app.
-func (m model) renderArticleModal() (string, string) {
+func (m model) renderArticleModal() string {
 	article, err := m.db.GetArticleByID(m.currentArticleID)
 	if err != nil {
-		return "Error", err.Error()
+		return err.Error()
 	}
 
 	theme := "light"
@@ -108,7 +108,7 @@ func (m model) renderArticleModal() (string, string) {
 	converter := md.NewConverter("", true, nil)
 	markdown, _ := converter.ConvertString(article.Summary)
 
-	out, _ := glamour.Render(markdown, theme)
+	out, _ := glamour.Render(fmt.Sprintf("# %s\n%s", article.Title, markdown), theme)
 
-	return article.Title, out
+	return out
 }

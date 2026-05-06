@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/benmatselby/wibble/pkg/client"
@@ -33,6 +34,7 @@ type model struct {
 	db               dao.DaoClient
 	feedsList        *list.Model
 	articlesList     *list.Model
+	articleViewport  viewport.Model
 	articlesTitle    string
 	readableDelegate readableDelegate
 	focusedPane      pane
@@ -94,7 +96,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		*m.articlesList = newList
 		cmd = c
 	case paneArticle:
-		// noop
+		newViewport, c := m.articleViewport.Update(msg)
+		m.articleViewport = newViewport
+		cmd = c
 	}
 
 	return m, cmd
@@ -108,6 +112,10 @@ func (m *model) resize() {
 
 	m.feedsList.SetSize(feedsWidth-4, availHeight)
 	m.articlesList.SetSize(articlesWidth-4, availHeight)
+
+	// Viewport sits inside the article panel border (subtract 2 for border + 1 for title)
+	m.articleViewport.SetWidth(articlesWidth - 4)
+	m.articleViewport.SetHeight(availHeight - 1)
 }
 
 // panelWidths returns (feedsWidth, articlesWidth) based on terminal width.
@@ -172,6 +180,7 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 		db:               db,
 		feedsList:        &feedsList,
 		articlesList:     &articlesList,
+		articleViewport:  viewport.New(),
 		articlesTitle:    "Select a feed →",
 		readableDelegate: rd,
 		focusedPane:      paneFeeds,
