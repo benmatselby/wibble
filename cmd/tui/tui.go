@@ -184,7 +184,7 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 	p := tea.NewProgram(m)
 
 	// syncAndReport runs a full sync cycle, reporting per-feed progress via the
-	// status bar. Errors auto-dismiss after 20 seconds (handled in Update).
+	// status bar.
 	syncAndReport := func() {
 		p.Send(statusMsg{text: "Syncing feeds...", level: statusInfo})
 		err := feed.Sync(db, rssClient, func(title string, syncErr error) {
