@@ -1,6 +1,8 @@
 package client
 
 import (
+	"fmt"
+
 	"github.com/benmatselby/wibble/pkg/models"
 	"github.com/mmcdole/gofeed"
 )
@@ -29,7 +31,7 @@ func (c *GoFeedClient) ParseURL(url string) (*models.Feed, []models.Article, err
 			Title:     item.Title,
 			Link:      item.Link,
 			Published: item.PublishedParsed,
-			Summary:   item.Description,
+			Summary:   fmt.Sprintf("%s\n%s", item.Description, item.Content),
 		})
 	}
 
