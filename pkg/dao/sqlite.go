@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -195,21 +196,16 @@ func (c *SQLiteClient) GetArticlesByFeedID(feedID int64) ([]models.Article, erro
 func (c *SQLiteClient) GetArticleByID(articleID int64) (*models.Article, error) {
 	utils.Log(fmt.Sprintf("GetArticleByID started for article ID %d", articleID))
 
-	rows, err := c.db.QueryContext(context.Background(),
+	row := c.db.QueryRowContext(context.Background(),
 		"SELECT id, feed_id, title, link, published, summary, is_read FROM articles WHERE id = ?",
 		articleID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to getquery article: %v", err)
-	}
-	defer rows.Close()
 
 	var article models.Article
-	if rows.Next() {
-		if err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.Link, &article.Published, &article.Summary, &article.IsRead); err != nil {
-			return nil, fmt.Errorf("failed to get article row: %v", err)
+	if err := row.Scan(&article.ID, &article.FeedID, &article.Title, &article.Link, &article.Published, &article.Summary, &article.IsRead); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("article %d not found", articleID)
 		}
-	} else {
-		return nil, fmt.Errorf("no rows returned")
+		return nil, fmt.Errorf("failed to get article: %w", err)
 	}
 
 	utils.Log(fmt.Sprintf("GetArticleByID finished for article ID %d", articleID))
