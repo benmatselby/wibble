@@ -1,0 +1,19 @@
+theme:
+  light:
+    focused_color: "#0000ff"
+    unfocused_color: "#eeeeee"
+    focused_title_text_color: "#ffffff"
+    unfocused_title_text_color: "#0000ff"
+    help_color: "#666666"
+    normal_title_color: "#000000"
+    selected_title_color: "#ff0000"
+    read_title_color: "#888888"
+  dark:
+    focused_color: "#00ffff"
+    unfocused_color: "#1a1a1a"
+    focused_title_text_color: "#000000"
+    unfocused_title_text_color: "#00ffff"
+    help_color: "#00cc00"
+    normal_title_color: "#ffffff"
+    selected_title_color: "#ff00ff"
+    read_title_color: "#444444"
