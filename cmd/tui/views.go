@@ -56,7 +56,7 @@ func (m model) View() tea.View {
 		panels = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, leftPanelWidth, "Feeds", m.feedsList.View()),
-			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, "Article", m.articleViewport.View()),
+			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, m.articlesTitle, m.articleViewport.View()),
 		)
 
 		help = m.styles.help.Render(fmt.Sprintf(
