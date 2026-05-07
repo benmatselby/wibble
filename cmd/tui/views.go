@@ -26,7 +26,7 @@ func (m model) View() tea.View {
 		panels = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, leftPanelWidth, "Feeds", m.feedsList.View()),
-			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, rightPanelWidth, "Articles", m.articlesList.View()),
+			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, rightPanelWidth, m.articlesTitle, m.articlesList.View()),
 		)
 		help = m.styles.help.Render(fmt.Sprintf(
 			"%s %s • %s %s • %s %s • %s %s • %s %s",
@@ -40,7 +40,7 @@ func (m model) View() tea.View {
 		panels = lipgloss.JoinHorizontal(
 			lipgloss.Top,
 			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, leftPanelWidth, "Feeds", m.feedsList.View()),
-			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, "Articles", m.articlesList.View()),
+			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, m.articlesTitle, m.articlesList.View()),
 		)
 
 		help = m.styles.help.Render(fmt.Sprintf(

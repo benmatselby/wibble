@@ -34,11 +34,6 @@ func handleArticlesLoaded(msg articlesLoadedMsg, m model) (tea.Model, tea.Cmd) {
 		items[i] = articleItem{article: e}
 	}
 	cmd := m.articlesList.SetItems(items)
-	if len(items) == 0 {
-		m.articlesTitle = "Articles (none)"
-	} else {
-		m.articlesTitle = fmt.Sprintf("Articles (%d)", len(items))
-	}
 	m.focusedPane = paneArticles
 	return m, cmd
 }
@@ -56,7 +51,7 @@ func handleOpenFeed(m model) (tea.Model, tea.Cmd, bool) {
 	fi := sel.(feedItem)
 	m.currentFeedID = fi.feed.ID
 	m.articlesList.Select(0)
-	m.articlesTitle = "Loading..."
+	m.articlesTitle = fi.feed.Title
 	_ = m.articlesList.SetItems([]list.Item{})
 	return m, fetchArticles(m.db, fi.feed.ID), true
 }
