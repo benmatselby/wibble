@@ -106,9 +106,15 @@ func (m model) renderArticleModal() string {
 	}
 
 	converter := md.NewConverter("", true, nil)
-	markdown, _ := converter.ConvertString(article.Summary)
+	markdown, err := converter.ConvertString(article.Summary)
+	if err != nil {
+		return fmt.Sprintf("Error converting article content: %v", err)
+	}
 
-	out, _ := glamour.Render(fmt.Sprintf("# %s\n%s", article.Title, markdown), theme)
+	out, err := glamour.Render(fmt.Sprintf("# %s\n%s", article.Title, markdown), theme)
+	if err != nil {
+		return fmt.Sprintf("Error rendering article content: %v", err)
+	}
 
 	return out
 }
