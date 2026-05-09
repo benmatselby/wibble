@@ -180,6 +180,8 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 
 	case paneArticle:
 		switch {
+		case key.Matches(msg, m.keys.Quit):
+			return m, tea.Quit, true
 		case key.Matches(msg, m.keys.Back):
 			m.focusedPane = paneArticles
 			return m, tea.Batch(
