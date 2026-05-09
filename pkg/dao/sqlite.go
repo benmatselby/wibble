@@ -97,7 +97,7 @@ func (c *SQLiteClient) AddFeed(feed models.Feed) (models.Feed, error) {
 	query := `
 INSERT INTO feeds (url, title, added_at, sort_index)
 VALUES (?, ?, ?, ?)
-ON CONFLICT(url) DO UPDATE SET url=url
+ON CONFLICT(url) DO UPDATE SET url=url, sort_index=excluded.sort_index
 RETURNING id, url, title, added_at, sort_index;
 `
 
