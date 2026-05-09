@@ -59,12 +59,11 @@ func handleOpenFeed(m model) (tea.Model, tea.Cmd, bool) {
 // handleViewArticle toggles the article view overlay and sets the current
 // article ID.
 func handleViewArticle(m model) (tea.Model, tea.Cmd, bool) {
-	m.focusedPane = paneArticle
-
 	selectedItem := m.articlesList.SelectedItem()
 	if selectedItem == nil {
 		return m, nil, true
 	}
+	m.focusedPane = paneArticle
 	m.currentArticleID = selectedItem.(articleItem).article.ID
 	if err := m.db.MarkArticleAsRead(m.currentArticleID); err != nil {
 		return m, func() tea.Msg {
