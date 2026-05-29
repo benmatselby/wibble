@@ -12,6 +12,7 @@ type DaoClient interface {
 	// Feeds
 	AddFeed(feed models.Feed) (models.Feed, error)
 	GetFeeds() ([]models.Feed, error)
+	DeleteFeedWithArticles(feedID int64) (int64, error)
 
 	// Articles
 	AddArticle(article models.Article) error

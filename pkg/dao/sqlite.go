@@ -19,15 +19,21 @@ func NewSQLiteClient() (DaoClient, error) {
 
 	// Ensure parent directories exist
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
-		return nil, fmt.Errorf("failed to create directories for database: %v", err)
+		return nil, fmt.Errorf("failed to create directories for database: %w", err)
 	}
 
 	// Open the SQLite database
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %v", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	return NewSQLiteClientFromDB(db)
+}
+
+// NewSQLiteClientFromDB creates a SQLite client from an existing *sql.DB.
+// Useful for testing with an in-memory database.
+func NewSQLiteClientFromDB(db *sql.DB) (DaoClient, error) {
 	c := &SQLiteClient{db: db}
 
 	if err := c.installFeed(); err != nil {
@@ -59,7 +65,7 @@ CREATE TABLE IF NOT EXISTS feeds (
 	sort_index INTEGER NOT NULL DEFAULT 0
 );`)
 	if err != nil {
-		return fmt.Errorf("failed to create feeds table: %v", err)
+		return fmt.Errorf("failed to create feeds table: %w", err)
 	}
 
 	utils.Log("installFeed finished")
@@ -83,7 +89,7 @@ CREATE TABLE IF NOT EXISTS articles (
     FOREIGN KEY(feed_id) REFERENCES feeds(id)
 );`)
 	if err != nil {
-		return fmt.Errorf("failed to create articles table: %v", err)
+		return fmt.Errorf("failed to create articles table: %w", err)
 	}
 
 	utils.Log("installArticle ended")
@@ -106,7 +112,7 @@ RETURNING id, url, title, added_at, sort_index;
 	if err := c.
 		db.QueryRowContext(ctx, query, feed.URL, feed.Title, feed.AddedAt, feed.SortIndex).
 		Scan(&result.ID, &result.URL, &result.Title, &result.AddedAt, &result.SortIndex); err != nil {
-		return feed, fmt.Errorf("failed to insert feed: %v", err)
+		return feed, fmt.Errorf("failed to insert feed: %w", err)
 	}
 
 	utils.Log("AddFeed finished")
@@ -127,7 +133,7 @@ LEFT JOIN articles a ON a.feed_id = f.id
 GROUP BY f.id, f.url, f.title, f.added_at
 ORDER BY sort_index`)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query feeds: %v", err)
+		return nil, fmt.Errorf("failed to query feeds: %w", err)
 	}
 	defer rows.Close()
 
@@ -135,13 +141,13 @@ ORDER BY sort_index`)
 	for rows.Next() {
 		var feed models.Feed
 		if err := rows.Scan(&feed.ID, &feed.URL, &feed.Title, &feed.AddedAt, &feed.TotalCount, &feed.UnreadCount); err != nil {
-			return nil, fmt.Errorf("failed to scan feed row: %v", err)
+			return nil, fmt.Errorf("failed to scan feed row: %w", err)
 		}
 		feeds = append(feeds, feed)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over feeds: %v", err)
+		return nil, fmt.Errorf("error iterating over feeds: %w", err)
 	}
 
 	utils.Log("GetFeeds finished")
@@ -156,7 +162,7 @@ func (c *SQLiteClient) AddArticle(article models.Article) error {
 		"INSERT OR IGNORE INTO articles (feed_id, title, link, published, summary) VALUES (?, ?, ?, ?, ?)",
 		article.FeedID, article.Title, article.Link, article.Published, article.Summary)
 	if err != nil {
-		return fmt.Errorf("failed to insert article: %v", err)
+		return fmt.Errorf("failed to insert article: %w", err)
 	}
 
 	utils.Log(fmt.Sprintf("AddArticle finished for feed ID %d", article.FeedID))
@@ -171,7 +177,7 @@ func (c *SQLiteClient) GetArticlesByFeedID(feedID int64) ([]models.Article, erro
 		"SELECT id, feed_id, title, link, published, summary, is_read FROM articles WHERE feed_id = ? ORDER BY published DESC",
 		feedID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query articles: %v", err)
+		return nil, fmt.Errorf("failed to query articles: %w", err)
 	}
 	defer rows.Close()
 
@@ -179,13 +185,13 @@ func (c *SQLiteClient) GetArticlesByFeedID(feedID int64) ([]models.Article, erro
 	for rows.Next() {
 		var article models.Article
 		if err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.Link, &article.Published, &article.Summary, &article.IsRead); err != nil {
-			return nil, fmt.Errorf("failed to scan article row: %v", err)
+			return nil, fmt.Errorf("failed to scan article row: %w", err)
 		}
 		articles = append(articles, article)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating over articles: %v", err)
+		return nil, fmt.Errorf("error iterating over articles: %w", err)
 	}
 
 	utils.Log(fmt.Sprintf("GetArticlesByFeedID finished for feed ID %d", feedID))
@@ -218,7 +224,7 @@ func (c *SQLiteClient) MarkArticleAsRead(articleID int64) error {
 
 	_, err := c.db.ExecContext(context.Background(), "UPDATE articles SET is_read = 1 WHERE id = ?", articleID)
 	if err != nil {
-		return fmt.Errorf("failed to mark article ID %d as read: %v", articleID, err)
+		return fmt.Errorf("failed to mark article ID %d as read: %w", articleID, err)
 	}
 
 	utils.Log(fmt.Sprintf("MarkArticleAsRead finished for article ID %d", articleID))
@@ -230,10 +236,45 @@ func (c *SQLiteClient) MarkArticlesAsRead(feedID int64) error {
 
 	_, err := c.db.ExecContext(context.Background(), "UPDATE articles SET is_read = 1 WHERE feed_id = ?", feedID)
 	if err != nil {
-		return fmt.Errorf("failed to mark articles as read for feed ID %d: %v", feedID, err)
+		return fmt.Errorf("failed to mark articles as read for feed ID %d: %w", feedID, err)
 	}
 	utils.Log(fmt.Sprintf("MarkArticlesAsRead finished for feed ID %d", feedID))
 	return nil
+}
+
+// DeleteFeedWithArticles deletes a feed and all its articles atomically within
+// a single transaction. Returns the number of articles deleted.
+func (c *SQLiteClient) DeleteFeedWithArticles(feedID int64) (int64, error) {
+	utils.Log(fmt.Sprintf("DeleteFeedWithArticles started for feed ID %d", feedID))
+
+	ctx := context.Background()
+
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to begin transaction for feed ID %d: %w", feedID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	result, err := tx.ExecContext(ctx, "DELETE FROM articles WHERE feed_id = ?", feedID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete articles for feed ID %d: %w", feedID, err)
+	}
+
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get rows affected for feed ID %d: %w", feedID, err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM feeds WHERE id = ?", feedID); err != nil {
+		return 0, fmt.Errorf("failed to delete feed ID %d: %w", feedID, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("failed to commit transaction for feed ID %d: %w", feedID, err)
+	}
+
+	utils.Log(fmt.Sprintf("DeleteFeedWithArticles finished for feed ID %d, deleted %d articles", feedID, count))
+	return count, nil
 }
 
 // Close closes the database connection.
@@ -241,7 +282,7 @@ func (c *SQLiteClient) Close() error {
 	utils.Log("Close started")
 	if c.db != nil {
 		if err := c.db.Close(); err != nil {
-			return fmt.Errorf("failed to close database: %v", err)
+			return fmt.Errorf("failed to close database: %w", err)
 		}
 	}
 

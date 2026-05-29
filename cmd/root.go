@@ -77,6 +77,8 @@ func NewRootCommand(db *dao.DaoClient, api *client.API) *cobra.Command {
 	cmd.PersistentFlags().String("database", fmt.Sprintf("$HOME/.config/%s/%s.db", ApplicationName, ApplicationName), "Path to the SQLite database file")
 	_ = viper.BindPFlag("database", cmd.PersistentFlags().Lookup("database"))
 
+	cmd.AddCommand(NewCleanCommand(db))
+
 	return cmd
 }
 

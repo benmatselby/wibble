@@ -346,3 +346,54 @@ func TestClose_NilDB(t *testing.T) {
 		t.Errorf("Close with nil db should not error: %v", err)
 	}
 }
+
+func TestDeleteFeedWithArticles(t *testing.T) {
+	c := newTestClient(t)
+
+	now := time.Now().UTC()
+
+	keep, _ := c.AddFeed(models.Feed{URL: "https://keep.com/feed", Title: "Keep", AddedAt: now})
+	stale, err := c.AddFeed(models.Feed{URL: "https://stale.com/feed", Title: "Stale", AddedAt: now})
+	if err != nil {
+		t.Fatalf("AddFeed: %v", err)
+	}
+
+	_ = c.AddArticle(models.Article{FeedID: stale.ID, Title: "S1", Link: "https://stale.com/1", Published: &now})
+	_ = c.AddArticle(models.Article{FeedID: stale.ID, Title: "S2", Link: "https://stale.com/2", Published: &now})
+	_ = c.AddArticle(models.Article{FeedID: keep.ID, Title: "K1", Link: "https://keep.com/1", Published: &now})
+
+	count, err := c.DeleteFeedWithArticles(stale.ID)
+	if err != nil {
+		t.Fatalf("DeleteFeedWithArticles: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 articles deleted, got %d", count)
+	}
+
+	feeds, err := c.GetFeeds()
+	if err != nil {
+		t.Fatalf("GetFeeds: %v", err)
+	}
+	if len(feeds) != 1 {
+		t.Errorf("expected 1 feed remaining, got %d", len(feeds))
+	}
+	if feeds[0].URL != "https://keep.com/feed" {
+		t.Errorf("expected keep feed to remain, got %q", feeds[0].URL)
+	}
+
+	staleArticles, err := c.GetArticlesByFeedID(stale.ID)
+	if err != nil {
+		t.Fatalf("GetArticlesByFeedID for stale feed: %v", err)
+	}
+	if len(staleArticles) != 0 {
+		t.Errorf("expected 0 articles for deleted feed, got %d", len(staleArticles))
+	}
+
+	keepArticles, err := c.GetArticlesByFeedID(keep.ID)
+	if err != nil {
+		t.Fatalf("GetArticlesByFeedID for keep feed: %v", err)
+	}
+	if len(keepArticles) != 1 {
+		t.Errorf("expected keep feed articles to be untouched (1), got %d", len(keepArticles))
+	}
+}

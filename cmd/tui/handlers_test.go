@@ -21,9 +21,10 @@ func (m *mockDB) GetArticlesByFeedID(feedID int64) ([]models.Article, error) {
 	return m.articles, nil
 }
 func (m *mockDB) GetArticleByID(articleID int64) (*models.Article, error) { return nil, nil }
-func (m *mockDB) MarkArticleAsRead(articleID int64) error                 { return nil }
-func (m *mockDB) MarkArticlesAsRead(feedID int64) error                   { return nil }
-func (m *mockDB) Close() error                                            { return nil }
+func (m *mockDB) MarkArticleAsRead(articleID int64) error                        { return nil }
+func (m *mockDB) MarkArticlesAsRead(feedID int64) error                          { return nil }
+func (m *mockDB) DeleteFeedWithArticles(feedID int64) (int64, error)             { return 0, nil }
+func (m *mockDB) Close() error                                                   { return nil }
 
 // newTestModel constructs a minimal model suitable for handler tests.
 func newTestModel(feedItems []list.Item) model {
