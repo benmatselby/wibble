@@ -18,7 +18,12 @@ func (e articleItem) Title() string {
 	if e.article.Published != nil {
 		published = e.article.Published.Format("02 Jan 2006 15:04:05")
 	}
-	return fmt.Sprintf("%-22s %s", published, title)
+
+	isNew := "⏺"
+	if e.article.IsRead {
+		isNew = " "
+	}
+	return fmt.Sprintf("%s  %-22s %s", isNew, published, title)
 }
 
 func (e articleItem) Description() string { return "" }
