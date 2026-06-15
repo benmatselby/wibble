@@ -6,7 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.1.0
 	charm.land/bubbletea/v2 v2.0.7
 	charm.land/glamour/v2 v2.0.0
-	charm.land/lipgloss/v2 v2.0.3
+	charm.land/lipgloss/v2 v2.0.4
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.45
 	github.com/mitchellh/go-homedir v1.1.0 // MIT
