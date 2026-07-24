@@ -12,6 +12,11 @@ type feedsLoadedMsg struct {
 	err   error
 }
 
+type tagsLoadedMsg struct {
+	tags []models.Tag
+	err  error
+}
+
 type statusLevel int
 
 const (

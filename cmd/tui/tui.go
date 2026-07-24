@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -28,18 +29,34 @@ const (
 	paneArticle
 )
 
+// leftPaneMode determines which list is displayed/active in the left-hand
+// panel: Feeds or Tags. The panel itself (position, focus routing via
+// paneFeeds) stays the same; only the underlying list and data source swap.
+type leftPaneMode int
+
+const (
+	leftPaneFeeds leftPaneMode = iota
+	leftPaneTags
+)
+
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type model struct {
 	db               dao.DaoClient
 	feedsList        *list.Model
+	tagsList         *list.Model
 	articlesList     *list.Model
 	articleViewport  viewport.Model
 	articlesTitle    string
 	readableDelegate readableDelegate
 	focusedPane      pane
+	leftPaneMode     leftPaneMode
 	currentFeedID    int64
+	currentTagID     int64
+	articlesFromTag  bool
 	currentArticleID int64
+	addingTag        bool
+	tagInput         textinput.Model
 	isDark           bool
 	theme            theme.Theme
 	styles           styles
@@ -57,6 +74,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.readableDelegate.Styles = m.styles.listItem
 		m.readableDelegate.readItemTitleColor = m.styles.readItemTitle
 		m.feedsList.SetDelegate(m.readableDelegate)
+		m.tagsList.SetDelegate(m.readableDelegate)
 		m.articlesList.SetDelegate(m.readableDelegate)
 		return m, nil
 
@@ -73,20 +91,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case feedsLoadedMsg:
 		return handleFeedsLoaded(msg, m)
 
+	case tagsLoadedMsg:
+		return handleTagsLoaded(msg, m)
+
 	case statusMsg:
 		return handleStatusMessage(m, msg)
 
 	case tea.KeyPressMsg:
+		if m.addingTag {
+			m1, c, shouldReturn := handleTagInputKeypress(msg, m)
+			if shouldReturn {
+				return m1, c
+			}
+			break
+		}
+
 		m1, c, shouldReturn := handleKeypress(msg, m)
 		if shouldReturn {
 			return m1, c
 		}
 	}
 
+	if m.addingTag {
+		newInput, cmd := m.tagInput.Update(msg)
+		m.tagInput = newInput
+		return m, cmd
+	}
+
 	// Route list updates to the focused pane
 	var cmd tea.Cmd
 	switch m.focusedPane {
 	case paneFeeds:
+		if m.leftPaneMode == leftPaneTags {
+			newList, c := m.tagsList.Update(msg)
+			*m.tagsList = newList
+			cmd = c
+			break
+		}
 		newList, c := m.feedsList.Update(msg)
 		*m.feedsList = newList
 		cmd = c
@@ -111,6 +152,7 @@ func (m *model) resize() {
 	feedsWidth, articlesWidth := m.panelWidths()
 
 	m.feedsList.SetSize(feedsWidth-4, availHeight)
+	m.tagsList.SetSize(feedsWidth-4, availHeight)
 	m.articlesList.SetSize(articlesWidth-4, availHeight)
 
 	// Viewport sits inside the article panel border (subtract 2 for border + 1 for title)
@@ -168,6 +210,14 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 	feedsFilterStyles := feedsList.FilterInput.Styles()
 	feedsList.FilterInput.SetStyles(configureFilterStyles(feedsFilterStyles, s))
 
+	tagsList := list.New([]list.Item{}, rd, 0, 0)
+	tagsList.SetShowHelp(false)
+	tagsList.SetShowTitle(false)
+	tagsList.SetFilteringEnabled(true)
+	tagsList.Styles.Title = s.focusedTitle
+	tagsFilterStyles := tagsList.FilterInput.Styles()
+	tagsList.FilterInput.SetStyles(configureFilterStyles(tagsFilterStyles, s))
+
 	articlesList := list.New([]list.Item{}, rd, 0, 0)
 	articlesList.SetShowHelp(false)
 	articlesList.SetShowTitle(false)
@@ -176,14 +226,21 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 	articlesFilterStyles := articlesList.FilterInput.Styles()
 	articlesList.FilterInput.SetStyles(configureFilterStyles(articlesFilterStyles, s))
 
+	tagInput := textinput.New()
+	tagInput.Placeholder = "tag name"
+	tagInput.CharLimit = 64
+
 	m := model{
 		db:               db,
 		feedsList:        &feedsList,
+		tagsList:         &tagsList,
 		articlesList:     &articlesList,
 		articleViewport:  viewport.New(),
 		articlesTitle:    "Select a feed →",
 		readableDelegate: rd,
 		focusedPane:      paneFeeds,
+		leftPaneMode:     leftPaneFeeds,
+		tagInput:         tagInput,
 		isDark:           isDark,
 		theme:            t,
 		styles:           s,

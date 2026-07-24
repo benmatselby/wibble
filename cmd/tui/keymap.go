@@ -12,13 +12,19 @@ type KeyMap struct {
 	ListFilter key.Binding
 
 	// Feeds pane
-	OpenFeed      key.Binding
-	MarkAllAsRead key.Binding
+	OpenFeed       key.Binding
+	MarkAllAsRead  key.Binding
+	ToggleTagsPane key.Binding
+
+	// Tags pane
+	OpenTag key.Binding
 
 	// Articles pane
 	MarkAsRead  key.Binding
 	ViewArticle key.Binding
 	OpenArticle key.Binding
+	AddTag      key.Binding
+	RemoveTag   key.Binding
 	Back        key.Binding
 }
 
@@ -51,6 +57,16 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("R"),
 		key.WithHelp("R", "mark feed as read"),
 	),
+	ToggleTagsPane: key.NewBinding(
+		key.WithKeys("L"),
+		key.WithHelp("L", "toggle tags"),
+	),
+
+	// Tags pane
+	OpenTag: key.NewBinding(
+		key.WithKeys("enter", "right", "l"),
+		key.WithHelp("enter/→/l", "open tag"),
+	),
 
 	// Articles pane
 	MarkAsRead: key.NewBinding(
@@ -64,6 +80,14 @@ var DefaultKeyMap = KeyMap{
 	OpenArticle: key.NewBinding(
 		key.WithKeys("o"),
 		key.WithHelp("o", "open link"),
+	),
+	AddTag: key.NewBinding(
+		key.WithKeys("t"),
+		key.WithHelp("t", "add tag"),
+	),
+	RemoveTag: key.NewBinding(
+		key.WithKeys("T"),
+		key.WithHelp("T", "remove tag"),
 	),
 	Back: key.NewBinding(
 		key.WithKeys("esc", "left", "h", "backspace"),

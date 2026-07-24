@@ -44,6 +44,14 @@ func NewSQLiteClientFromDB(db *sql.DB) (DaoClient, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	if err := c.installTag(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := c.installArticleTag(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 
 	return c, nil
 }
@@ -93,6 +101,43 @@ CREATE TABLE IF NOT EXISTS articles (
 	}
 
 	utils.Log("installArticle ended")
+	return nil
+}
+
+// installTag initializes the tags table in the SQLite database.
+func (c *SQLiteClient) installTag() error {
+	utils.Log("installTag started")
+
+	_, err := c.db.ExecContext(context.Background(), `
+CREATE TABLE IF NOT EXISTS tags (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	name TEXT NOT NULL UNIQUE
+);`)
+	if err != nil {
+		return fmt.Errorf("failed to create tags table: %w", err)
+	}
+
+	utils.Log("installTag finished")
+	return nil
+}
+
+// installArticleTag initializes the article_tags join table in the SQLite database.
+func (c *SQLiteClient) installArticleTag() error {
+	utils.Log("installArticleTag started")
+
+	_, err := c.db.ExecContext(context.Background(), `
+CREATE TABLE IF NOT EXISTS article_tags (
+	article_id INTEGER NOT NULL,
+	tag_id INTEGER NOT NULL,
+	UNIQUE(article_id, tag_id),
+	FOREIGN KEY(article_id) REFERENCES articles(id),
+	FOREIGN KEY(tag_id) REFERENCES tags(id)
+);`)
+	if err != nil {
+		return fmt.Errorf("failed to create article_tags table: %w", err)
+	}
+
+	utils.Log("installArticleTag finished")
 	return nil
 }
 
@@ -275,6 +320,186 @@ func (c *SQLiteClient) DeleteFeedWithArticles(feedID int64) (int64, error) {
 
 	utils.Log(fmt.Sprintf("DeleteFeedWithArticles finished for feed ID %d, deleted %d articles", feedID, count))
 	return count, nil
+}
+
+// AddTag inserts a new tag into the database if it doesn't already exist
+// (case-insensitive match), and returns the resulting tag.
+func (c *SQLiteClient) AddTag(name string) (models.Tag, error) {
+	utils.Log(fmt.Sprintf("AddTag started for name %q", name))
+
+	query := `
+INSERT INTO tags (name)
+VALUES (?)
+ON CONFLICT(name) DO UPDATE SET name=name
+RETURNING id, name;
+`
+
+	var result models.Tag
+	ctx := context.Background()
+	if err := c.
+		db.QueryRowContext(ctx, query, name).
+		Scan(&result.ID, &result.Name); err != nil {
+		return result, fmt.Errorf("failed to insert tag: %w", err)
+	}
+
+	utils.Log(fmt.Sprintf("AddTag finished for name %q", name))
+	return result, nil
+}
+
+// GetTags retrieves all tags from the database, along with the number of
+// articles associated with each tag.
+func (c *SQLiteClient) GetTags() ([]models.Tag, error) {
+	utils.Log("GetTags started")
+
+	rows, err := c.db.QueryContext(context.Background(), `
+SELECT t.id, t.name, COUNT(at.article_id) AS article_count
+FROM tags t
+LEFT JOIN article_tags at ON at.tag_id = t.id
+GROUP BY t.id, t.name
+ORDER BY t.name COLLATE NOCASE`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tags: %w", err)
+	}
+	defer rows.Close()
+
+	var tags []models.Tag
+	for rows.Next() {
+		var tag models.Tag
+		if err := rows.Scan(&tag.ID, &tag.Name, &tag.ArticleCount); err != nil {
+			return nil, fmt.Errorf("failed to scan tag row: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over tags: %w", err)
+	}
+
+	utils.Log("GetTags finished")
+	return tags, nil
+}
+
+// DeleteTag deletes a tag and its associations with articles.
+func (c *SQLiteClient) DeleteTag(tagID int64) error {
+	utils.Log(fmt.Sprintf("DeleteTag started for tag ID %d", tagID))
+
+	ctx := context.Background()
+
+	tx, err := c.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for tag ID %d: %w", tagID, err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM article_tags WHERE tag_id = ?", tagID); err != nil {
+		return fmt.Errorf("failed to delete article associations for tag ID %d: %w", tagID, err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM tags WHERE id = ?", tagID); err != nil {
+		return fmt.Errorf("failed to delete tag ID %d: %w", tagID, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction for tag ID %d: %w", tagID, err)
+	}
+
+	utils.Log(fmt.Sprintf("DeleteTag finished for tag ID %d", tagID))
+	return nil
+}
+
+// AddTagToArticle associates a tag with an article.
+func (c *SQLiteClient) AddTagToArticle(articleID, tagID int64) error {
+	utils.Log(fmt.Sprintf("AddTagToArticle started for article ID %d, tag ID %d", articleID, tagID))
+
+	_, err := c.db.ExecContext(context.Background(),
+		"INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)",
+		articleID, tagID)
+	if err != nil {
+		return fmt.Errorf("failed to associate tag ID %d with article ID %d: %w", tagID, articleID, err)
+	}
+
+	utils.Log(fmt.Sprintf("AddTagToArticle finished for article ID %d, tag ID %d", articleID, tagID))
+	return nil
+}
+
+// RemoveTagFromArticle removes the association between a tag and an article.
+func (c *SQLiteClient) RemoveTagFromArticle(articleID, tagID int64) error {
+	utils.Log(fmt.Sprintf("RemoveTagFromArticle started for article ID %d, tag ID %d", articleID, tagID))
+
+	_, err := c.db.ExecContext(context.Background(),
+		"DELETE FROM article_tags WHERE article_id = ? AND tag_id = ?",
+		articleID, tagID)
+	if err != nil {
+		return fmt.Errorf("failed to remove tag ID %d from article ID %d: %w", tagID, articleID, err)
+	}
+
+	utils.Log(fmt.Sprintf("RemoveTagFromArticle finished for article ID %d, tag ID %d", articleID, tagID))
+	return nil
+}
+
+// GetTagsForArticle retrieves all tags associated with a given article.
+func (c *SQLiteClient) GetTagsForArticle(articleID int64) ([]models.Tag, error) {
+	utils.Log(fmt.Sprintf("GetTagsForArticle started for article ID %d", articleID))
+
+	rows, err := c.db.QueryContext(context.Background(), `
+SELECT t.id, t.name
+FROM tags t
+JOIN article_tags at ON at.tag_id = t.id
+WHERE at.article_id = ?
+ORDER BY t.name COLLATE NOCASE`, articleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query tags for article ID %d: %w", articleID, err)
+	}
+	defer rows.Close()
+
+	var tags []models.Tag
+	for rows.Next() {
+		var tag models.Tag
+		if err := rows.Scan(&tag.ID, &tag.Name); err != nil {
+			return nil, fmt.Errorf("failed to scan tag row: %w", err)
+		}
+		tags = append(tags, tag)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over tags for article ID %d: %w", articleID, err)
+	}
+
+	utils.Log(fmt.Sprintf("GetTagsForArticle finished for article ID %d", articleID))
+	return tags, nil
+}
+
+// GetArticlesByTagID retrieves all articles associated with a given tag,
+// ordered by published date descending.
+func (c *SQLiteClient) GetArticlesByTagID(tagID int64) ([]models.Article, error) {
+	utils.Log(fmt.Sprintf("GetArticlesByTagID started for tag ID %d", tagID))
+
+	rows, err := c.db.QueryContext(context.Background(), `
+SELECT a.id, a.feed_id, a.title, a.link, a.published, a.summary, a.is_read
+FROM articles a
+JOIN article_tags at ON at.article_id = a.id
+WHERE at.tag_id = ?
+ORDER BY a.published DESC`, tagID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query articles for tag ID %d: %w", tagID, err)
+	}
+	defer rows.Close()
+
+	var articles []models.Article
+	for rows.Next() {
+		var article models.Article
+		if err := rows.Scan(&article.ID, &article.FeedID, &article.Title, &article.Link, &article.Published, &article.Summary, &article.IsRead); err != nil {
+			return nil, fmt.Errorf("failed to scan article row: %w", err)
+		}
+		articles = append(articles, article)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over articles for tag ID %d: %w", tagID, err)
+	}
+
+	utils.Log(fmt.Sprintf("GetArticlesByTagID finished for tag ID %d", tagID))
+	return articles, nil
 }
 
 // Close closes the database connection.

@@ -21,6 +21,15 @@ type DaoClient interface {
 	MarkArticleAsRead(articleID int64) error
 	MarkArticlesAsRead(feedID int64) error
 
+	// Tags
+	AddTag(name string) (models.Tag, error)
+	GetTags() ([]models.Tag, error)
+	DeleteTag(tagID int64) error
+	AddTagToArticle(articleID, tagID int64) error
+	RemoveTagFromArticle(articleID, tagID int64) error
+	GetTagsForArticle(articleID int64) ([]models.Tag, error)
+	GetArticlesByTagID(tagID int64) ([]models.Article, error)
+
 	// Maintenance
 	Close() error
 }
