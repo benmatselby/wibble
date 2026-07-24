@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
@@ -275,7 +276,7 @@ func handleTagInputKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, b
 	case "enter":
 		m.addingTag = false
 		m.tagInput.Blur()
-		name := m.tagInput.Value()
+		name := strings.TrimSpace(m.tagInput.Value())
 		if name == "" {
 			return m, nil, true
 		}
