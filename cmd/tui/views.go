@@ -30,7 +30,11 @@ func (m model) View() tea.View {
 			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, leftPanelWidth, leftTitle, leftContent),
 			renderPanel(m.styles.unfocusedTitle, m.styles.unfocusedBorder, rightPanelWidth, m.articlesTitle, m.articlesList.View()),
 		)
-		if m.leftPaneMode == leftPaneTags {
+		if m.confirmDeleteTag != nil {
+			help = m.styles.help.Render(fmt.Sprintf(
+				"Delete tag %q? (y to confirm, any other key to cancel)", m.confirmDeleteTag.Name,
+			))
+		} else if m.leftPaneMode == leftPaneTags {
 			help = m.styles.help.Render(fmt.Sprintf(
 				"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
 				fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",

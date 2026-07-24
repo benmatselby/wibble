@@ -16,6 +16,7 @@ import (
 	"github.com/benmatselby/wibble/pkg/config"
 	"github.com/benmatselby/wibble/pkg/dao"
 	"github.com/benmatselby/wibble/pkg/feed"
+	"github.com/benmatselby/wibble/pkg/models"
 	"github.com/benmatselby/wibble/pkg/theme"
 )
 
@@ -57,6 +58,7 @@ type model struct {
 	currentArticleID int64
 	addingTag        bool
 	tagInput         textinput.Model
+	confirmDeleteTag *models.Tag
 	isDark           bool
 	theme            theme.Theme
 	styles           styles
@@ -98,6 +100,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleStatusMessage(m, msg)
 
 	case tea.KeyPressMsg:
+		if m.confirmDeleteTag != nil {
+			return handleConfirmDeleteTagKeypress(msg, m)
+		}
+
 		if m.addingTag {
 			m1, c, shouldReturn := handleTagInputKeypress(msg, m)
 			if shouldReturn {

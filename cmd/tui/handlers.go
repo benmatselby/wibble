@@ -88,25 +88,44 @@ func handleOpenTag(m model) (tea.Model, tea.Cmd, bool) {
 	return m, fetchArticlesByTag(m.db, ti.tag.ID), true
 }
 
-// handleDeleteTag deletes the currently selected tag, along with all of its
-// article associations, and refreshes the tags list.
+// handleDeleteTag opens a confirmation prompt for deleting the currently
+// selected tag. The actual deletion is performed by
+// handleConfirmDeleteTagKeypress once the user confirms with "y"; any other
+// key cancels.
 func handleDeleteTag(m model) (tea.Model, tea.Cmd, bool) {
 	sel := m.tagsList.SelectedItem()
 	if sel == nil {
 		return m, nil, true
 	}
 	ti := sel.(tagItem)
-	if err := m.db.DeleteTag(ti.tag.ID); err != nil {
+	tag := ti.tag
+	m.confirmDeleteTag = &tag
+	return m, nil, true
+}
+
+// handleConfirmDeleteTagKeypress processes the keypress following a
+// handleDeleteTag prompt. Pressing "y" deletes the tag (along with all of
+// its article associations) and refreshes the tags list; any other key
+// cancels without deleting anything.
+func handleConfirmDeleteTagKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd) {
+	tag := m.confirmDeleteTag
+	m.confirmDeleteTag = nil
+
+	if msg.String() != "y" {
+		return m, nil
+	}
+
+	if err := m.db.DeleteTag(tag.ID); err != nil {
 		return m, func() tea.Msg {
 			return statusMsg{text: fmt.Sprintf("Error deleting tag: %v", err), level: statusError}
-		}, true
+		}
 	}
 	return m, tea.Batch(
 		func() tea.Msg {
-			return statusMsg{text: fmt.Sprintf("Deleted tag %q", ti.tag.Name), level: statusInfo}
+			return statusMsg{text: fmt.Sprintf("Deleted tag %q", tag.Name), level: statusInfo}
 		},
 		fetchTags(m.db),
-	), true
+	)
 }
 
 // refreshArticlesCmd reloads the currently displayed article list, whether
