@@ -112,7 +112,7 @@ func (c *SQLiteClient) installTag() error {
 	_, err := c.db.ExecContext(context.Background(), `
 CREATE TABLE IF NOT EXISTS tags (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	name TEXT NOT NULL UNIQUE
+	name TEXT NOT NULL UNIQUE COLLATE NOCASE
 );`)
 	if err != nil {
 		return fmt.Errorf("failed to create tags table: %w", err)
