@@ -32,10 +32,11 @@ func (m model) View() tea.View {
 		)
 		if m.leftPaneMode == leftPaneTags {
 			help = m.styles.help.Render(fmt.Sprintf(
-				"%s %s • %s %s • %s %s • %s %s • %s %s",
+				"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
 				fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
 				m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
 				m.keys.OpenTag.Help().Key, m.keys.OpenTag.Help().Desc,
+				m.keys.DeleteTag.Help().Key, m.keys.DeleteTag.Help().Desc,
 				m.keys.ToggleTagsPane.Help().Key, "show feeds",
 				m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 			))

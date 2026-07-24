@@ -590,13 +590,13 @@ func TestGetArticlesByTagID(t *testing.T) {
 		t.Fatalf("GetArticlesByFeedID: %v", err)
 	}
 
-	var older_, newer_ models.Article
+	var olderArticle, newerArticle models.Article
 	for _, a := range articles {
 		switch a.Title {
 		case "Older":
-			older_ = a
+			olderArticle = a
 		case "Newer":
-			newer_ = a
+			newerArticle = a
 		}
 	}
 
@@ -605,10 +605,10 @@ func TestGetArticlesByTagID(t *testing.T) {
 		t.Fatalf("AddTag: %v", err)
 	}
 
-	if err := c.AddTagToArticle(older_.ID, tag.ID); err != nil {
+	if err := c.AddTagToArticle(olderArticle.ID, tag.ID); err != nil {
 		t.Fatalf("AddTagToArticle older: %v", err)
 	}
-	if err := c.AddTagToArticle(newer_.ID, tag.ID); err != nil {
+	if err := c.AddTagToArticle(newerArticle.ID, tag.ID); err != nil {
 		t.Fatalf("AddTagToArticle newer: %v", err)
 	}
 

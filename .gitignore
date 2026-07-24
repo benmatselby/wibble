@@ -4,6 +4,8 @@ wibble
 # Tools
 coverage.out
 *code-review.txt
+.entire
+.opencode
 
 # Caches
 build
