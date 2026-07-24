@@ -12,11 +12,13 @@ import (
 
 // mockDB is a minimal implementation of dao.DaoClient for testing.
 type mockDB struct {
-	articles []models.Article
-	feeds    []models.Feed
-	tags     []models.Tag
-	tagged   map[int64][]models.Tag
-	addTagFn func(name string) (models.Tag, error)
+	articles      []models.Article
+	feeds         []models.Feed
+	tags          []models.Tag
+	tagged        map[int64][]models.Tag
+	addTagFn      func(name string) (models.Tag, error)
+	deleteTagFn   func(tagID int64) error
+	deletedTagIDs []int64
 }
 
 func (m *mockDB) AddFeed(feed models.Feed) (models.Feed, error) { return feed, nil }
@@ -38,7 +40,13 @@ func (m *mockDB) AddTag(name string) (models.Tag, error) {
 	return models.Tag{ID: 1, Name: name}, nil
 }
 func (m *mockDB) GetTags() ([]models.Tag, error) { return m.tags, nil }
-func (m *mockDB) DeleteTag(tagID int64) error    { return nil }
+func (m *mockDB) DeleteTag(tagID int64) error {
+	m.deletedTagIDs = append(m.deletedTagIDs, tagID)
+	if m.deleteTagFn != nil {
+		return m.deleteTagFn(tagID)
+	}
+	return nil
+}
 func (m *mockDB) AddTagToArticle(articleID, tagID int64) error {
 	if m.tagged == nil {
 		m.tagged = map[int64][]models.Tag{}
@@ -259,6 +267,79 @@ func TestHandleOpenTag_NilSelection(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Error("cmd should be nil when no tag is selected")
+	}
+	if result == nil {
+		t.Error("returned model should not be nil")
+	}
+}
+
+func TestHandleDeleteTag_DeletesSelectedTag(t *testing.T) {
+	tag := models.Tag{ID: 7, Name: "research"}
+	m := newTestModel([]list.Item{})
+	db := m.db.(*mockDB)
+	items := []list.Item{tagItem{tag: tag}}
+	_ = m.tagsList.SetItems(items)
+
+	result, cmd, handled := handleDeleteTag(m)
+
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd == nil {
+		t.Error("cmd should not be nil when a tag is selected")
+	}
+	if result == nil {
+		t.Error("returned model should not be nil")
+	}
+	if len(db.deletedTagIDs) != 1 || db.deletedTagIDs[0] != tag.ID {
+		t.Errorf("deletedTagIDs = %v, want [%d]", db.deletedTagIDs, tag.ID)
+	}
+}
+
+func TestHandleDeleteTag_NilSelection(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	db := m.db.(*mockDB)
+
+	result, cmd, handled := handleDeleteTag(m)
+
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd != nil {
+		t.Error("cmd should be nil when no tag is selected")
+	}
+	if result == nil {
+		t.Error("returned model should not be nil")
+	}
+	if len(db.deletedTagIDs) != 0 {
+		t.Errorf("deletedTagIDs = %v, want none", db.deletedTagIDs)
+	}
+}
+
+func TestHandleDeleteTag_Error(t *testing.T) {
+	tag := models.Tag{ID: 9, Name: "broken"}
+	m := newTestModel([]list.Item{})
+	db := m.db.(*mockDB)
+	db.deleteTagFn = func(tagID int64) error {
+		return fmt.Errorf("db failure")
+	}
+	_ = m.tagsList.SetItems([]list.Item{tagItem{tag: tag}})
+
+	result, cmd, handled := handleDeleteTag(m)
+
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd == nil {
+		t.Fatal("cmd should not be nil on error")
+	}
+	msg := cmd()
+	statusMessage, ok := msg.(statusMsg)
+	if !ok {
+		t.Fatalf("expected statusMsg, got %T", msg)
+	}
+	if statusMessage.level != statusError {
+		t.Errorf("status.level = %v, want statusError", statusMessage.level)
 	}
 	if result == nil {
 		t.Error("returned model should not be nil")

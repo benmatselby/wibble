@@ -17,7 +17,8 @@ type KeyMap struct {
 	ToggleTagsPane key.Binding
 
 	// Tags pane
-	OpenTag key.Binding
+	OpenTag   key.Binding
+	DeleteTag key.Binding
 
 	// Articles pane
 	MarkAsRead  key.Binding
@@ -66,6 +67,10 @@ var DefaultKeyMap = KeyMap{
 	OpenTag: key.NewBinding(
 		key.WithKeys("enter", "right", "l"),
 		key.WithHelp("enter/→/l", "open tag"),
+	),
+	DeleteTag: key.NewBinding(
+		key.WithKeys("d"),
+		key.WithHelp("d", "delete tag"),
 	),
 
 	// Articles pane

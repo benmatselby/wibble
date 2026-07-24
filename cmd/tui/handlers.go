@@ -87,6 +87,27 @@ func handleOpenTag(m model) (tea.Model, tea.Cmd, bool) {
 	return m, fetchArticlesByTag(m.db, ti.tag.ID), true
 }
 
+// handleDeleteTag deletes the currently selected tag, along with all of its
+// article associations, and refreshes the tags list.
+func handleDeleteTag(m model) (tea.Model, tea.Cmd, bool) {
+	sel := m.tagsList.SelectedItem()
+	if sel == nil {
+		return m, nil, true
+	}
+	ti := sel.(tagItem)
+	if err := m.db.DeleteTag(ti.tag.ID); err != nil {
+		return m, func() tea.Msg {
+			return statusMsg{text: fmt.Sprintf("Error deleting tag: %v", err), level: statusError}
+		}, true
+	}
+	return m, tea.Batch(
+		func() tea.Msg {
+			return statusMsg{text: fmt.Sprintf("Deleted tag %q", ti.tag.Name), level: statusInfo}
+		},
+		fetchTags(m.db),
+	), true
+}
+
 // refreshArticlesCmd reloads the currently displayed article list, whether
 // it originated from a feed or a tag.
 func refreshArticlesCmd(m model) tea.Cmd {
@@ -300,6 +321,8 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			switch {
 			case key.Matches(msg, m.keys.OpenTag):
 				return handleOpenTag(m)
+			case key.Matches(msg, m.keys.DeleteTag):
+				return handleDeleteTag(m)
 			case key.Matches(msg, m.keys.ToggleTagsPane):
 				return handleToggleLeftPane(m)
 			}
