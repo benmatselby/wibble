@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/benmatselby/wibble/pkg/models"
 	"github.com/benmatselby/wibble/pkg/utils"
@@ -129,6 +130,7 @@ func (c *SQLiteClient) installArticleTag() error {
 CREATE TABLE IF NOT EXISTS article_tags (
 	article_id INTEGER NOT NULL,
 	tag_id INTEGER NOT NULL,
+	added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE(article_id, tag_id),
 	FOREIGN KEY(article_id) REFERENCES articles(id),
 	FOREIGN KEY(tag_id) REFERENCES tags(id)
@@ -137,7 +139,53 @@ CREATE TABLE IF NOT EXISTS article_tags (
 		return fmt.Errorf("failed to create article_tags table: %w", err)
 	}
 
+	if err := c.migrateArticleTagAddedAt(); err != nil {
+		return err
+	}
+
 	utils.Log("installArticleTag finished")
+	return nil
+}
+
+// migrateArticleTagAddedAt adds the added_at column to pre-existing
+// article_tags tables that were created before the column was introduced.
+func (c *SQLiteClient) migrateArticleTagAddedAt() error {
+	rows, err := c.db.QueryContext(context.Background(), `PRAGMA table_info(article_tags)`)
+	if err != nil {
+		return fmt.Errorf("failed to inspect article_tags table: %w", err)
+	}
+	defer rows.Close()
+
+	hasAddedAt := false
+	for rows.Next() {
+		var (
+			cid       int
+			name      string
+			ctype     string
+			notNull   int
+			dfltValue sql.NullString
+			pk        int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notNull, &dfltValue, &pk); err != nil {
+			return fmt.Errorf("failed to scan article_tags column info: %w", err)
+		}
+		if name == "added_at" {
+			hasAddedAt = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("error iterating article_tags column info: %w", err)
+	}
+
+	if hasAddedAt {
+		return nil
+	}
+
+	if _, err := c.db.ExecContext(context.Background(),
+		`ALTER TABLE article_tags ADD COLUMN added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`); err != nil {
+		return fmt.Errorf("failed to add added_at column to article_tags: %w", err)
+	}
+
 	return nil
 }
 
@@ -407,13 +455,17 @@ func (c *SQLiteClient) DeleteTag(tagID int64) error {
 	return nil
 }
 
-// AddTagToArticle associates a tag with an article.
+// AddTagToArticle associates a tag with an article, recording the time of
+// association so the most recently added tag can be determined later.
 func (c *SQLiteClient) AddTagToArticle(articleID, tagID int64) error {
 	utils.Log(fmt.Sprintf("AddTagToArticle started for article ID %d, tag ID %d", articleID, tagID))
 
+	// Use an explicit, nanosecond-precision timestamp rather than SQLite's
+	// CURRENT_TIMESTAMP (which only has second resolution) so that tags
+	// added in quick succession retain a stable, correct ordering.
 	_, err := c.db.ExecContext(context.Background(),
-		"INSERT OR IGNORE INTO article_tags (article_id, tag_id) VALUES (?, ?)",
-		articleID, tagID)
+		"INSERT OR IGNORE INTO article_tags (article_id, tag_id, added_at) VALUES (?, ?, ?)",
+		articleID, tagID, time.Now().UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("failed to associate tag ID %d with article ID %d: %w", tagID, articleID, err)
 	}
@@ -437,7 +489,9 @@ func (c *SQLiteClient) RemoveTagFromArticle(articleID, tagID int64) error {
 	return nil
 }
 
-// GetTagsForArticle retrieves all tags associated with a given article.
+// GetTagsForArticle retrieves all tags associated with a given article,
+// ordered from least to most recently added, so the last element of the
+// returned slice is the most recently added tag.
 func (c *SQLiteClient) GetTagsForArticle(articleID int64) ([]models.Tag, error) {
 	utils.Log(fmt.Sprintf("GetTagsForArticle started for article ID %d", articleID))
 
@@ -446,7 +500,7 @@ SELECT t.id, t.name
 FROM tags t
 JOIN article_tags at ON at.tag_id = t.id
 WHERE at.article_id = ?
-ORDER BY t.name COLLATE NOCASE`, articleID)
+ORDER BY at.added_at ASC, t.id ASC`, articleID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query tags for article ID %d: %w", articleID, err)
 	}

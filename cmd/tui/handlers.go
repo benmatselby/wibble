@@ -231,7 +231,9 @@ func handleStartAddTag(m model) (tea.Model, tea.Cmd, bool) {
 }
 
 // handleRemoveTagFromArticle removes the most recently added tag from the
-// current article, one at a time per keypress.
+// current article, one at a time per keypress. GetTagsForArticle returns
+// tags ordered by their added_at timestamp, so the last element is the
+// most recently added tag.
 func handleRemoveTagFromArticle(m model) (tea.Model, tea.Cmd, bool) {
 	articleID, ok := currentArticleIDForTagging(m)
 	if !ok {
