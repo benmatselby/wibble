@@ -443,6 +443,32 @@ func TestAddTag_DuplicateNameIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestAddTag_DuplicateNameCaseInsensitive(t *testing.T) {
+	c := newTestClient(t)
+
+	first, err := c.AddTag("Research")
+	if err != nil {
+		t.Fatalf("first AddTag: %v", err)
+	}
+
+	second, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("second AddTag: %v", err)
+	}
+
+	if first.ID != second.ID {
+		t.Errorf("expected same ID for case-insensitive duplicate: first=%d second=%d", first.ID, second.ID)
+	}
+
+	tags, err := c.GetTags()
+	if err != nil {
+		t.Fatalf("GetTags: %v", err)
+	}
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
+	}
+}
+
 func TestGetTags_Empty(t *testing.T) {
 	c := newTestClient(t)
 

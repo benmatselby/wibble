@@ -10,6 +10,7 @@ A simple TUI for RSS Feeds. It has the following features:
 - Open a modal view of the article summary in the application.
 - Override all the colours used via the configuration file.
 - Refresh feeds every 10 minutes (configurable).
+- Tag feeds using any label you would like.
 
 Rose Pine Day
 
