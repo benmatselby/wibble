@@ -139,53 +139,7 @@ CREATE TABLE IF NOT EXISTS article_tags (
 		return fmt.Errorf("failed to create article_tags table: %w", err)
 	}
 
-	if err := c.migrateArticleTagAddedAt(); err != nil {
-		return err
-	}
-
 	utils.Log("installArticleTag finished")
-	return nil
-}
-
-// migrateArticleTagAddedAt adds the added_at column to pre-existing
-// article_tags tables that were created before the column was introduced.
-func (c *SQLiteClient) migrateArticleTagAddedAt() error {
-	rows, err := c.db.QueryContext(context.Background(), `PRAGMA table_info(article_tags)`)
-	if err != nil {
-		return fmt.Errorf("failed to inspect article_tags table: %w", err)
-	}
-	defer rows.Close()
-
-	hasAddedAt := false
-	for rows.Next() {
-		var (
-			cid       int
-			name      string
-			ctype     string
-			notNull   int
-			dfltValue sql.NullString
-			pk        int
-		)
-		if err := rows.Scan(&cid, &name, &ctype, &notNull, &dfltValue, &pk); err != nil {
-			return fmt.Errorf("failed to scan article_tags column info: %w", err)
-		}
-		if name == "added_at" {
-			hasAddedAt = true
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error iterating article_tags column info: %w", err)
-	}
-
-	if hasAddedAt {
-		return nil
-	}
-
-	if _, err := c.db.ExecContext(context.Background(),
-		`ALTER TABLE article_tags ADD COLUMN added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP`); err != nil {
-		return fmt.Errorf("failed to add added_at column to article_tags: %w", err)
-	}
-
 	return nil
 }
 

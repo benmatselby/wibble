@@ -284,7 +284,7 @@ func TestHandleOpenTag_NilSelection(t *testing.T) {
 	}
 }
 
-func TestHandleDeleteTag_DeletesSelectedTag(t *testing.T) {
+func TestHandleDeleteTag_ArmsConfirmation(t *testing.T) {
 	tag := models.Tag{ID: 7, Name: "research"}
 	m := newTestModel([]list.Item{})
 	db := m.db.(*mockDB)
@@ -296,14 +296,18 @@ func TestHandleDeleteTag_DeletesSelectedTag(t *testing.T) {
 	if !handled {
 		t.Error("handled = false, want true")
 	}
-	if cmd == nil {
-		t.Error("cmd should not be nil when a tag is selected")
+	if cmd != nil {
+		t.Error("cmd should be nil; deletion is deferred until confirmation")
 	}
-	if result == nil {
-		t.Error("returned model should not be nil")
+	updated, ok := result.(model)
+	if !ok {
+		t.Fatal("returned model is not of type model")
 	}
-	if len(db.deletedTagIDs) != 1 || db.deletedTagIDs[0] != tag.ID {
-		t.Errorf("deletedTagIDs = %v, want [%d]", db.deletedTagIDs, tag.ID)
+	if updated.confirmDeleteTag == nil || updated.confirmDeleteTag.ID != tag.ID {
+		t.Errorf("confirmDeleteTag = %v, want tag ID %d", updated.confirmDeleteTag, tag.ID)
+	}
+	if len(db.deletedTagIDs) != 0 {
+		t.Errorf("deletedTagIDs = %v, want none until confirmed", db.deletedTagIDs)
 	}
 }
 
@@ -327,27 +331,73 @@ func TestHandleDeleteTag_NilSelection(t *testing.T) {
 	}
 }
 
-func TestHandleDeleteTag_Error(t *testing.T) {
+func TestHandleConfirmDeleteTagKeypress_YConfirmsDeletion(t *testing.T) {
+	tag := models.Tag{ID: 7, Name: "research"}
+	m := newTestModel([]list.Item{})
+	db := m.db.(*mockDB)
+	m.confirmDeleteTag = &tag
+
+	msg := tea.KeyPressMsg(tea.Key{Code: 'y', Text: "y"})
+	result, cmd := handleConfirmDeleteTagKeypress(msg, m)
+
+	if cmd == nil {
+		t.Error("cmd should not be nil when confirmed")
+	}
+	updated, ok := result.(model)
+	if !ok {
+		t.Fatal("returned model is not of type model")
+	}
+	if updated.confirmDeleteTag != nil {
+		t.Error("confirmDeleteTag should be cleared after confirmation")
+	}
+	if len(db.deletedTagIDs) != 1 || db.deletedTagIDs[0] != tag.ID {
+		t.Errorf("deletedTagIDs = %v, want [%d]", db.deletedTagIDs, tag.ID)
+	}
+}
+
+func TestHandleConfirmDeleteTagKeypress_OtherKeyCancels(t *testing.T) {
+	tag := models.Tag{ID: 7, Name: "research"}
+	m := newTestModel([]list.Item{})
+	db := m.db.(*mockDB)
+	m.confirmDeleteTag = &tag
+
+	msg := tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc})
+	result, cmd := handleConfirmDeleteTagKeypress(msg, m)
+
+	if cmd != nil {
+		t.Error("cmd should be nil when cancelled")
+	}
+	updated, ok := result.(model)
+	if !ok {
+		t.Fatal("returned model is not of type model")
+	}
+	if updated.confirmDeleteTag != nil {
+		t.Error("confirmDeleteTag should be cleared after cancelling")
+	}
+	if len(db.deletedTagIDs) != 0 {
+		t.Errorf("deletedTagIDs = %v, want none", db.deletedTagIDs)
+	}
+}
+
+func TestHandleConfirmDeleteTagKeypress_Error(t *testing.T) {
 	tag := models.Tag{ID: 9, Name: "broken"}
 	m := newTestModel([]list.Item{})
 	db := m.db.(*mockDB)
 	db.deleteTagFn = func(tagID int64) error {
 		return fmt.Errorf("db failure")
 	}
-	_ = m.tagsList.SetItems([]list.Item{tagItem{tag: tag}})
+	m.confirmDeleteTag = &tag
 
-	result, cmd, handled := handleDeleteTag(m)
+	msg := tea.KeyPressMsg(tea.Key{Code: 'y', Text: "y"})
+	result, cmd := handleConfirmDeleteTagKeypress(msg, m)
 
-	if !handled {
-		t.Error("handled = false, want true")
-	}
 	if cmd == nil {
 		t.Fatal("cmd should not be nil on error")
 	}
-	msg := cmd()
-	statusMessage, ok := msg.(statusMsg)
+	msg2 := cmd()
+	statusMessage, ok := msg2.(statusMsg)
 	if !ok {
-		t.Fatalf("expected statusMsg, got %T", msg)
+		t.Fatalf("expected statusMsg, got %T", msg2)
 	}
 	if statusMessage.level != statusError {
 		t.Errorf("status.level = %v, want statusError", statusMessage.level)
