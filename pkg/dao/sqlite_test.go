@@ -545,6 +545,48 @@ func TestAddTagToArticle_DuplicateIsIgnored(t *testing.T) {
 	}
 }
 
+func TestGetTagsForArticle_OrderedByInsertion(t *testing.T) {
+	c := newTestClient(t)
+
+	feed, _ := c.AddFeed(models.Feed{URL: "https://example.com/feed", AddedAt: time.Now().UTC()})
+	now := time.Now().UTC()
+	_ = c.AddArticle(models.Article{FeedID: feed.ID, Title: "A1", Link: "https://example.com/1", Published: &now})
+	articles, _ := c.GetArticlesByFeedID(feed.ID)
+
+	zebra, err := c.AddTag("zebra")
+	if err != nil {
+		t.Fatalf("AddTag zebra: %v", err)
+	}
+	apple, err := c.AddTag("apple")
+	if err != nil {
+		t.Fatalf("AddTag apple: %v", err)
+	}
+
+	// Tag with the alphabetically later name is added first, and the
+	// alphabetically earlier name is added last, to prove ordering is by
+	// insertion time and not by tag name.
+	if err := c.AddTagToArticle(articles[0].ID, zebra.ID); err != nil {
+		t.Fatalf("AddTagToArticle zebra: %v", err)
+	}
+	if err := c.AddTagToArticle(articles[0].ID, apple.ID); err != nil {
+		t.Fatalf("AddTagToArticle apple: %v", err)
+	}
+
+	tags, err := c.GetTagsForArticle(articles[0].ID)
+	if err != nil {
+		t.Fatalf("GetTagsForArticle: %v", err)
+	}
+	if len(tags) != 2 {
+		t.Fatalf("expected 2 tags, got %d", len(tags))
+	}
+	if tags[0].Name != "zebra" {
+		t.Errorf("expected first tag to be zebra (added first), got %q", tags[0].Name)
+	}
+	if last := tags[len(tags)-1]; last.Name != "apple" {
+		t.Errorf("expected last tag to be apple (added most recently), got %q", last.Name)
+	}
+}
+
 func TestRemoveTagFromArticle(t *testing.T) {
 	c := newTestClient(t)
 

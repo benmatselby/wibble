@@ -19,6 +19,7 @@ type mockDB struct {
 	addTagFn      func(name string) (models.Tag, error)
 	deleteTagFn   func(tagID int64) error
 	deletedTagIDs []int64
+	removedTags   []int64
 }
 
 func (m *mockDB) AddFeed(feed models.Feed) (models.Feed, error) { return feed, nil }
@@ -54,7 +55,17 @@ func (m *mockDB) AddTagToArticle(articleID, tagID int64) error {
 	m.tagged[articleID] = append(m.tagged[articleID], models.Tag{ID: tagID})
 	return nil
 }
-func (m *mockDB) RemoveTagFromArticle(articleID, tagID int64) error { return nil }
+func (m *mockDB) RemoveTagFromArticle(articleID, tagID int64) error {
+	m.removedTags = append(m.removedTags, tagID)
+	tags := m.tagged[articleID]
+	for i, t := range tags {
+		if t.ID == tagID {
+			m.tagged[articleID] = append(tags[:i], tags[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
 func (m *mockDB) GetTagsForArticle(articleID int64) ([]models.Tag, error) {
 	return m.tagged[articleID], nil
 }
@@ -398,6 +409,71 @@ func TestHandleStartAddTag_OpensOverlay(t *testing.T) {
 	if !updated.addingTag {
 		t.Error("addingTag should be true after starting add-tag")
 	}
+}
+
+func TestHandleRemoveTagFromArticle_RemovesMostRecentlyAdded(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	m.focusedPane = paneArticles
+	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
+
+	db := m.db.(*mockDB)
+	// "zebra" is added first but is alphabetically last, so a naive
+	// alphabetical-order implementation would incorrectly remove it here
+	// instead of "apple", which was added most recently.
+	db.tagged = map[int64][]models.Tag{
+		1: {{ID: 10, Name: "zebra"}, {ID: 20, Name: "apple"}},
+	}
+
+	result, cmd, handled := handleRemoveTagFromArticle(m)
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd == nil {
+		t.Error("cmd should not be nil")
+	}
+	_ = result
+
+	if len(db.removedTags) != 1 || db.removedTags[0] != 20 {
+		t.Errorf("expected tag ID 20 (apple) to be removed, got %v", db.removedTags)
+	}
+	remaining := db.tagged[1]
+	if len(remaining) != 1 || remaining[0].Name != "zebra" {
+		t.Errorf("expected zebra to remain, got %v", remaining)
+	}
+}
+
+func TestHandleRemoveTagFromArticle_NoTags(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	m.focusedPane = paneArticles
+	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
+
+	result, cmd, handled := handleRemoveTagFromArticle(m)
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd == nil {
+		t.Error("cmd should not be nil for the status message")
+	}
+	_ = result
+
+	db := m.db.(*mockDB)
+	if len(db.removedTags) != 0 {
+		t.Errorf("expected no tags removed, got %v", db.removedTags)
+	}
+}
+
+func TestHandleRemoveTagFromArticle_NoSelection(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	m.focusedPane = paneArticles
+
+	result, cmd, handled := handleRemoveTagFromArticle(m)
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd != nil {
+		t.Error("cmd should be nil when no article is selected")
+	}
+	_ = result
 }
 
 func TestHandleTagInputKeypress_EnterAddsTag(t *testing.T) {
