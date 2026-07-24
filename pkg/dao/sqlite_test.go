@@ -25,6 +25,12 @@ func newTestClient(t *testing.T) *SQLiteClient {
 	if err := c.installArticle(); err != nil {
 		t.Fatalf("installArticle: %v", err)
 	}
+	if err := c.installTag(); err != nil {
+		t.Fatalf("installTag: %v", err)
+	}
+	if err := c.installArticleTag(); err != nil {
+		t.Fatalf("installArticleTag: %v", err)
+	}
 
 	t.Cleanup(func() { _ = c.Close() })
 
@@ -40,6 +46,12 @@ func TestInstallSchemaIsIdempotent(t *testing.T) {
 	}
 	if err := c.installArticle(); err != nil {
 		t.Errorf("second installArticle call failed: %v", err)
+	}
+	if err := c.installTag(); err != nil {
+		t.Errorf("second installTag call failed: %v", err)
+	}
+	if err := c.installArticleTag(); err != nil {
+		t.Errorf("second installArticleTag call failed: %v", err)
 	}
 }
 
@@ -395,5 +407,220 @@ func TestDeleteFeedWithArticles(t *testing.T) {
 	}
 	if len(keepArticles) != 1 {
 		t.Errorf("expected keep feed articles to be untouched (1), got %d", len(keepArticles))
+	}
+}
+
+func TestAddTag(t *testing.T) {
+	c := newTestClient(t)
+
+	tag, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+	if tag.ID != 1 {
+		t.Errorf("expected ID after insert, got %v", tag.ID)
+	}
+	if tag.Name != "research" {
+		t.Errorf("Name: got %q, want %q", tag.Name, "research")
+	}
+}
+
+func TestAddTag_DuplicateNameIsIdempotent(t *testing.T) {
+	c := newTestClient(t)
+
+	first, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("first AddTag: %v", err)
+	}
+
+	second, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("second AddTag: %v", err)
+	}
+
+	if first.ID != second.ID {
+		t.Errorf("expected same ID on duplicate insert: first=%d second=%d", first.ID, second.ID)
+	}
+}
+
+func TestGetTags_Empty(t *testing.T) {
+	c := newTestClient(t)
+
+	tags, err := c.GetTags()
+	if err != nil {
+		t.Fatalf("GetTags: %v", err)
+	}
+
+	if len(tags) != 0 {
+		t.Errorf("expected 0 tags, got %d", len(tags))
+	}
+}
+
+func TestGetTags_ReturnsTagsWithCounts(t *testing.T) {
+	c := newTestClient(t)
+
+	feed, err := c.AddFeed(models.Feed{URL: "https://example.com/feed", AddedAt: time.Now().UTC()})
+	if err != nil {
+		t.Fatalf("AddFeed: %v", err)
+	}
+
+	now := time.Now().UTC()
+	if err := c.AddArticle(models.Article{FeedID: feed.ID, Title: "A1", Link: "https://example.com/1", Published: &now}); err != nil {
+		t.Fatalf("AddArticle: %v", err)
+	}
+	articles, err := c.GetArticlesByFeedID(feed.ID)
+	if err != nil {
+		t.Fatalf("GetArticlesByFeedID: %v", err)
+	}
+
+	tag, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+
+	if err := c.AddTagToArticle(articles[0].ID, tag.ID); err != nil {
+		t.Fatalf("AddTagToArticle: %v", err)
+	}
+
+	tags, err := c.GetTags()
+	if err != nil {
+		t.Fatalf("GetTags: %v", err)
+	}
+
+	if len(tags) != 1 {
+		t.Fatalf("expected 1 tag, got %d", len(tags))
+	}
+	if tags[0].ArticleCount != 1 {
+		t.Errorf("expected article count 1, got %d", tags[0].ArticleCount)
+	}
+}
+
+func TestDeleteTag(t *testing.T) {
+	c := newTestClient(t)
+
+	tag, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+
+	if err := c.DeleteTag(tag.ID); err != nil {
+		t.Fatalf("DeleteTag: %v", err)
+	}
+
+	tags, err := c.GetTags()
+	if err != nil {
+		t.Fatalf("GetTags: %v", err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("expected 0 tags after delete, got %d", len(tags))
+	}
+}
+
+func TestAddTagToArticle_DuplicateIsIgnored(t *testing.T) {
+	c := newTestClient(t)
+
+	feed, _ := c.AddFeed(models.Feed{URL: "https://example.com/feed", AddedAt: time.Now().UTC()})
+	now := time.Now().UTC()
+	_ = c.AddArticle(models.Article{FeedID: feed.ID, Title: "A1", Link: "https://example.com/1", Published: &now})
+	articles, _ := c.GetArticlesByFeedID(feed.ID)
+
+	tag, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+
+	if err := c.AddTagToArticle(articles[0].ID, tag.ID); err != nil {
+		t.Fatalf("first AddTagToArticle: %v", err)
+	}
+	if err := c.AddTagToArticle(articles[0].ID, tag.ID); err != nil {
+		t.Fatalf("second AddTagToArticle: %v", err)
+	}
+
+	tagsForArticle, err := c.GetTagsForArticle(articles[0].ID)
+	if err != nil {
+		t.Fatalf("GetTagsForArticle: %v", err)
+	}
+	if len(tagsForArticle) != 1 {
+		t.Errorf("expected 1 tag for article, got %d", len(tagsForArticle))
+	}
+}
+
+func TestRemoveTagFromArticle(t *testing.T) {
+	c := newTestClient(t)
+
+	feed, _ := c.AddFeed(models.Feed{URL: "https://example.com/feed", AddedAt: time.Now().UTC()})
+	now := time.Now().UTC()
+	_ = c.AddArticle(models.Article{FeedID: feed.ID, Title: "A1", Link: "https://example.com/1", Published: &now})
+	articles, _ := c.GetArticlesByFeedID(feed.ID)
+
+	tag, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+
+	if err := c.AddTagToArticle(articles[0].ID, tag.ID); err != nil {
+		t.Fatalf("AddTagToArticle: %v", err)
+	}
+	if err := c.RemoveTagFromArticle(articles[0].ID, tag.ID); err != nil {
+		t.Fatalf("RemoveTagFromArticle: %v", err)
+	}
+
+	tagsForArticle, err := c.GetTagsForArticle(articles[0].ID)
+	if err != nil {
+		t.Fatalf("GetTagsForArticle: %v", err)
+	}
+	if len(tagsForArticle) != 0 {
+		t.Errorf("expected 0 tags for article after removal, got %d", len(tagsForArticle))
+	}
+}
+
+func TestGetArticlesByTagID(t *testing.T) {
+	c := newTestClient(t)
+
+	feed, _ := c.AddFeed(models.Feed{URL: "https://example.com/feed", AddedAt: time.Now().UTC()})
+
+	older := time.Now().UTC().Add(-24 * time.Hour)
+	newer := time.Now().UTC()
+	_ = c.AddArticle(models.Article{FeedID: feed.ID, Title: "Older", Link: "https://example.com/older", Published: &older})
+	_ = c.AddArticle(models.Article{FeedID: feed.ID, Title: "Newer", Link: "https://example.com/newer", Published: &newer})
+	_ = c.AddArticle(models.Article{FeedID: feed.ID, Title: "Untagged", Link: "https://example.com/untagged", Published: &newer})
+
+	articles, err := c.GetArticlesByFeedID(feed.ID)
+	if err != nil {
+		t.Fatalf("GetArticlesByFeedID: %v", err)
+	}
+
+	var older_, newer_ models.Article
+	for _, a := range articles {
+		switch a.Title {
+		case "Older":
+			older_ = a
+		case "Newer":
+			newer_ = a
+		}
+	}
+
+	tag, err := c.AddTag("research")
+	if err != nil {
+		t.Fatalf("AddTag: %v", err)
+	}
+
+	if err := c.AddTagToArticle(older_.ID, tag.ID); err != nil {
+		t.Fatalf("AddTagToArticle older: %v", err)
+	}
+	if err := c.AddTagToArticle(newer_.ID, tag.ID); err != nil {
+		t.Fatalf("AddTagToArticle newer: %v", err)
+	}
+
+	tagged, err := c.GetArticlesByTagID(tag.ID)
+	if err != nil {
+		t.Fatalf("GetArticlesByTagID: %v", err)
+	}
+
+	if len(tagged) != 2 {
+		t.Fatalf("expected 2 tagged articles, got %d", len(tagged))
+	}
+	if tagged[0].Title != "Newer" {
+		t.Errorf("expected first article to be 'Newer', got %q", tagged[0].Title)
 	}
 }
