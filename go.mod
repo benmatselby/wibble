@@ -8,7 +8,7 @@ require (
 	charm.land/glamour/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.5
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/mattn/go-sqlite3 v1.14.48
+	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/mitchellh/go-homedir v1.1.0 // MIT
 	github.com/mmcdole/gofeed v1.4.0
 	github.com/spf13/cobra v1.10.2
