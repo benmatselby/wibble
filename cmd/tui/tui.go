@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/list"
@@ -46,6 +47,8 @@ type model struct {
 	db               dao.DaoClient
 	feedsList        *list.Model
 	tagsList         *list.Model
+	tagPickerList    *list.Model
+	removeTagList    *list.Model
 	articlesList     *list.Model
 	articleViewport  viewport.Model
 	articlesTitle    string
@@ -57,6 +60,7 @@ type model struct {
 	articlesFromTag  bool
 	currentArticleID int64
 	addingTag        bool
+	removingTag      bool
 	tagInput         textinput.Model
 	confirmDeleteTag *models.Tag
 	isDark           bool
@@ -75,9 +79,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.styles = newStyles(m.theme, m.isDark)
 		m.readableDelegate.Styles = m.styles.listItem
 		m.readableDelegate.readItemTitleColor = m.styles.readItemTitle
-		m.feedsList.SetDelegate(m.readableDelegate)
-		m.tagsList.SetDelegate(m.readableDelegate)
-		m.articlesList.SetDelegate(m.readableDelegate)
+		for _, l := range m.allLists() {
+			l.SetDelegate(m.readableDelegate)
+		}
 		return m, nil
 
 	case tea.WindowSizeMsg:
@@ -96,6 +100,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tagsLoadedMsg:
 		return handleTagsLoaded(msg, m)
 
+	case articleTagsLoadedMsg:
+		return handleArticleTagsLoaded(msg, m)
+
 	case statusMsg:
 		return handleStatusMessage(m, msg)
 
@@ -112,6 +119,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			break
 		}
 
+		if m.removingTag {
+			m1, c := handleRemoveTagKeypress(msg, m)
+			return m1, c
+		}
+
 		m1, c, shouldReturn := handleKeypress(msg, m)
 		if shouldReturn {
 			return m1, c
@@ -119,8 +131,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.addingTag {
+		prevValue := strings.TrimSpace(m.tagInput.Value())
 		newInput, cmd := m.tagInput.Update(msg)
 		m.tagInput = newInput
+		if newValue := strings.TrimSpace(m.tagInput.Value()); newValue != prevValue {
+			// SetFilterText resets the picker's cursor/pagination to the top
+			// (via GoToStart), so only call it when the text actually
+			// changed. Otherwise unrelated messages reaching this branch
+			// (e.g. the textinput's cursor-blink ticks) would repeatedly
+			// reset the picker's selection.
+			m.tagPickerList.SetFilterText(newValue)
+		}
 		return m, cmd
 	}
 
@@ -151,6 +172,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// allLists returns every *list.Model owned by the model. Centralising this
+// avoids having to remember to touch every call site (delegate refresh,
+// theme updates, etc.) whenever a new list is added to the model.
+func (m model) allLists() []*list.Model {
+	return []*list.Model{
+		m.feedsList,
+		m.tagsList,
+		m.tagPickerList,
+		m.removeTagList,
+		m.articlesList,
+	}
+}
+
+// modalLists returns the lists rendered as small centered modal pickers
+// (as opposed to the main panel lists), so their shared sizing can be
+// applied in one place.
+func (m model) modalLists() []*list.Model {
+	return []*list.Model{
+		m.tagPickerList,
+		m.removeTagList,
+	}
+}
+
 func (m *model) resize() {
 	frameHeight := 3                          // top margin (1) + border top/bottom (2)
 	availHeight := m.height - frameHeight - 3 // subtract help line + status bar line
@@ -160,6 +204,14 @@ func (m *model) resize() {
 	m.feedsList.SetSize(feedsWidth-4, availHeight)
 	m.tagsList.SetSize(feedsWidth-4, availHeight)
 	m.articlesList.SetSize(articlesWidth-4, availHeight)
+
+	// Modal pickers (add/remove tag) are shown in a small centered box,
+	// independent of the left-hand panel sizes.
+	pickerWidth := min(50, m.width-4)
+	pickerHeight := min(10, m.height-8)
+	for _, l := range m.modalLists() {
+		l.SetSize(pickerWidth, pickerHeight)
+	}
 
 	// Viewport sits inside the article panel border (subtract 2 for border + 1 for title)
 	m.articleViewport.SetWidth(articlesWidth - 4)
@@ -181,6 +233,19 @@ func (m model) panelWidths() (int, int) {
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
+
+// newModalList constructs a list.Model suitable for a small centered modal
+// picker (e.g. the add/remove tag overlays): no title/help chrome, and no
+// interactive "/" filtering, since these modals either don't need filtering
+// or drive it manually via SetFilterText from an associated text input.
+func newModalList(rd readableDelegate, titleStyle lipgloss.Style) list.Model {
+	l := list.New([]list.Item{}, rd, 0, 0)
+	l.SetShowHelp(false)
+	l.SetShowTitle(false)
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = titleStyle
+	return l
+}
 
 // Run is the entry point to the TUI.
 func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
@@ -224,6 +289,9 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 	tagsFilterStyles := tagsList.FilterInput.Styles()
 	tagsList.FilterInput.SetStyles(configureFilterStyles(tagsFilterStyles, s))
 
+	tagPickerList := newModalList(rd, s.focusedTitle)
+	removeTagList := newModalList(rd, s.focusedTitle)
+
 	articlesList := list.New([]list.Item{}, rd, 0, 0)
 	articlesList.SetShowHelp(false)
 	articlesList.SetShowTitle(false)
@@ -240,6 +308,8 @@ func Run(db dao.DaoClient, rssClient client.API, t theme.Theme) error {
 		db:               db,
 		feedsList:        &feedsList,
 		tagsList:         &tagsList,
+		tagPickerList:    &tagPickerList,
+		removeTagList:    &removeTagList,
 		articlesList:     &articlesList,
 		articleViewport:  viewport.New(),
 		articlesTitle:    "Select a feed →",

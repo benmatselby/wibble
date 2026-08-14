@@ -17,6 +17,13 @@ type tagsLoadedMsg struct {
 	err  error
 }
 
+// articleTagsLoadedMsg carries the tags currently attached to a specific
+// article, used to populate the remove-tag picker.
+type articleTagsLoadedMsg struct {
+	tags []models.Tag
+	err  error
+}
+
 type statusLevel int
 
 const (

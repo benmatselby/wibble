@@ -35,6 +35,14 @@ func handleTagsLoaded(msg tagsLoadedMsg, m model) (tea.Model, tea.Cmd) {
 		items[i] = tagItem{tag: t}
 	}
 	cmd := m.tagsList.SetItems(items)
+
+	// tagPickerList is rendered outside the normal focused-pane routing (it's
+	// a modal), so the async re-filter command that SetItems would otherwise
+	// return never gets dispatched back to it. Recompute its filtered view
+	// synchronously instead, using whatever's currently typed in tagInput.
+	_ = m.tagPickerList.SetItems(items)
+	m.tagPickerList.SetFilterText(strings.TrimSpace(m.tagInput.Value()))
+
 	return m, cmd
 }
 
@@ -246,63 +254,134 @@ func handleStartAddTag(m model) (tea.Model, tea.Cmd, bool) {
 	}
 	m.addingTag = true
 	m.tagInput.SetValue("")
-	cmd := m.tagInput.Focus()
+	m.tagPickerList.SetFilterText("")
+	m.tagPickerList.Select(0)
+	cmd := tea.Batch(m.tagInput.Focus(), fetchTags(m.db))
 	return m, cmd, true
 }
 
-// handleRemoveTagFromArticle removes the most recently added tag from the
-// current article, one at a time per keypress. GetTagsForArticle returns
-// tags ordered by their added_at timestamp, so the last element is the
-// most recently added tag.
-func handleRemoveTagFromArticle(m model) (tea.Model, tea.Cmd, bool) {
+// handleStartRemoveTag opens the remove-tag picker overlay for the current
+// article, populated with the tags currently attached to it.
+func handleStartRemoveTag(m model) (tea.Model, tea.Cmd, bool) {
 	articleID, ok := currentArticleIDForTagging(m)
 	if !ok {
 		return m, nil, true
 	}
-	tags, err := m.db.GetTagsForArticle(articleID)
-	if err != nil {
+	m.removingTag = true
+	return m, fetchArticleTags(m.db, articleID), true
+}
+
+// handleArticleTagsLoaded populates the remove-tag picker with the tags
+// currently attached to the article being tagged.
+func handleArticleTagsLoaded(msg articleTagsLoadedMsg, m model) (tea.Model, tea.Cmd) {
+	if msg.err != nil {
 		return m, func() tea.Msg {
-			return statusMsg{text: fmt.Sprintf("Error loading tags: %v", err), level: statusError}
-		}, true
+			return statusMsg{text: fmt.Sprintf("Failed to load article tags: %v", msg.err), level: statusError}
+		}
 	}
-	if len(tags) == 0 {
-		return m, func() tea.Msg {
-			return statusMsg{text: "Article has no tags", level: statusInfo}
-		}, true
+	items := make([]list.Item, len(msg.tags))
+	for i, t := range msg.tags {
+		items[i] = tagItem{tag: t}
 	}
-	last := tags[len(tags)-1]
-	if err := m.db.RemoveTagFromArticle(articleID, last.ID); err != nil {
-		return m, func() tea.Msg {
-			return statusMsg{text: fmt.Sprintf("Error removing tag: %v", err), level: statusError}
-		}, true
+	cmd := m.removeTagList.SetItems(items)
+	m.removeTagList.Select(0)
+	return m, cmd
+}
+
+// handleRemoveTagKeypress processes keypresses while the remove-tag picker
+// overlay is active. Up/down navigate the list of the article's current
+// tags, enter removes the highlighted tag (and refreshes the picker so
+// further tags can be removed), and esc closes the overlay. Every key is
+// handled while the overlay is open since there's no text input to fall
+// through to.
+func handleRemoveTagKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc":
+		m.removingTag = false
+		return m, nil
+	case "up":
+		m.removeTagList.CursorUp()
+		return m, nil
+	case "down":
+		m.removeTagList.CursorDown()
+		return m, nil
+	case "enter":
+		articleID, ok := currentArticleIDForTagging(m)
+		if !ok {
+			m.removingTag = false
+			return m, nil
+		}
+		sel := m.removeTagList.SelectedItem()
+		if sel == nil {
+			m.removingTag = false
+			return m, nil
+		}
+		tag := sel.(tagItem).tag
+		if err := m.db.RemoveTagFromArticle(articleID, tag.ID); err != nil {
+			return m, func() tea.Msg {
+				return statusMsg{text: fmt.Sprintf("Error removing tag: %v", err), level: statusError}
+			}
+		}
+		return m, tea.Batch(
+			func() tea.Msg {
+				return statusMsg{text: fmt.Sprintf("Removed tag %q", tag.Name), level: statusInfo}
+			},
+			fetchArticleTags(m.db, articleID),
+			fetchTags(m.db),
+		)
 	}
-	return m, tea.Batch(
-		func() tea.Msg {
-			return statusMsg{text: fmt.Sprintf("Removed tag %q", last.Name), level: statusInfo}
-		},
-		fetchTags(m.db),
-	), true
+	// Swallow any other key while the picker is open; there's no text input
+	// to fall through to here.
+	return m, nil
 }
 
 // handleTagInputKeypress processes keypresses while the tag-name input
-// overlay is active (enter submits, esc cancels).
+// overlay is active. Up/down navigate the existing-tags picker list, enter
+// submits (either the typed name, or the highlighted existing tag if the
+// input is empty), and esc cancels.
 func handleTagInputKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 	switch msg.String() {
 	case "esc":
 		m.addingTag = false
 		m.tagInput.Blur()
 		return m, nil, true
+	case "up":
+		m.tagPickerList.CursorUp()
+		return m, nil, true
+	case "down":
+		m.tagPickerList.CursorDown()
+		return m, nil, true
 	case "enter":
 		m.addingTag = false
 		m.tagInput.Blur()
-		name := strings.TrimSpace(m.tagInput.Value())
-		if name == "" {
-			return m, nil, true
-		}
+
 		articleID, ok := currentArticleIDForTagging(m)
 		if !ok {
 			return m, nil, true
 		}
+
+		name := strings.TrimSpace(m.tagInput.Value())
+		if name == "" {
+			// No name typed: fall back to whatever tag is highlighted in
+			// the picker list, if any.
+			sel := m.tagPickerList.SelectedItem()
+			if sel == nil {
+				return m, nil, true
+			}
+			tag := sel.(tagItem).tag
+			if err := m.db.AddTagToArticle(articleID, tag.ID); err != nil {
+				return m, func() tea.Msg {
+					return statusMsg{text: fmt.Sprintf("Error tagging article: %v", err), level: statusError}
+				}, true
+			}
+			return m, tea.Batch(
+				func() tea.Msg {
+					return statusMsg{text: fmt.Sprintf("Tagged article %q", tag.Name), level: statusInfo}
+				},
+				fetchTags(m.db),
+			), true
+		}
+
 		tag, err := m.db.AddTag(name)
 		if err != nil {
 			return m, func() tea.Msg {
@@ -385,7 +464,7 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 		case key.Matches(msg, m.keys.AddTag):
 			return handleStartAddTag(m)
 		case key.Matches(msg, m.keys.RemoveTag):
-			return handleRemoveTagFromArticle(m)
+			return handleStartRemoveTag(m)
 		}
 
 	case paneArticle:
@@ -403,7 +482,7 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 		case key.Matches(msg, m.keys.AddTag):
 			return handleStartAddTag(m)
 		case key.Matches(msg, m.keys.RemoveTag):
-			return handleRemoveTagFromArticle(m)
+			return handleStartRemoveTag(m)
 		}
 	}
 	return nil, nil, false

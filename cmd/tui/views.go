@@ -62,21 +62,17 @@ func (m model) View() tea.View {
 			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, m.articlesTitle, m.articlesList.View()),
 		)
 
-		if m.addingTag {
-			help = m.styles.help.Render(fmt.Sprintf("tag name: %s (enter to confirm, esc to cancel)", m.tagInput.View()))
-		} else {
-			help = m.styles.help.Render(fmt.Sprintf(
-				"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
-				fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
-				m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
-				m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
-				m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
-				m.keys.MarkAsRead.Help().Key, m.keys.MarkAsRead.Help().Desc,
-				m.keys.AddTag.Help().Key, m.keys.AddTag.Help().Desc,
-				m.keys.RemoveTag.Help().Key, m.keys.RemoveTag.Help().Desc,
-				m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
-			))
-		}
+		help = m.styles.help.Render(fmt.Sprintf(
+			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
+			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
+			m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
+			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
+			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
+			m.keys.MarkAsRead.Help().Key, m.keys.MarkAsRead.Help().Desc,
+			m.keys.AddTag.Help().Key, m.keys.AddTag.Help().Desc,
+			m.keys.RemoveTag.Help().Key, m.keys.RemoveTag.Help().Desc,
+			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
+		))
 	case paneArticle:
 		panels = lipgloss.JoinHorizontal(
 			lipgloss.Top,
@@ -84,19 +80,15 @@ func (m model) View() tea.View {
 			renderPanel(m.styles.focusedTitle, m.styles.focusedBorder, rightPanelWidth, m.articlesTitle, m.articleViewport.View()),
 		)
 
-		if m.addingTag {
-			help = m.styles.help.Render(fmt.Sprintf("tag name: %s (enter to confirm, esc to cancel)", m.tagInput.View()))
-		} else {
-			help = m.styles.help.Render(fmt.Sprintf(
-				"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
-				fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "scroll",
-				m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
-				m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
-				m.keys.AddTag.Help().Key, m.keys.AddTag.Help().Desc,
-				m.keys.RemoveTag.Help().Key, m.keys.RemoveTag.Help().Desc,
-				m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
-			))
-		}
+		help = m.styles.help.Render(fmt.Sprintf(
+			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
+			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "scroll",
+			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
+			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
+			m.keys.AddTag.Help().Key, m.keys.AddTag.Help().Desc,
+			m.keys.RemoveTag.Help().Key, m.keys.RemoveTag.Help().Desc,
+			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
+		))
 	}
 
 	// ── Status bar ────────────────────────────────────────────────────────────
@@ -111,7 +103,26 @@ func (m model) View() tea.View {
 
 	v := tea.NewView(lipgloss.JoinVertical(lipgloss.Left, panels, help, statusBar))
 	v.AltScreen = true
+
+	if modal := m.activeModal(); modal != "" {
+		v = tea.NewView(lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal))
+		v.AltScreen = true
+	}
+
 	return v
+}
+
+// activeModal returns the rendered content of whichever full-screen modal
+// overlay is currently active (add tag, remove tag, ...), or "" if none is
+// active and the normal panel layout should be shown.
+func (m model) activeModal() string {
+	switch {
+	case m.addingTag:
+		return m.renderAddTagList()
+	case m.removingTag:
+		return m.renderRemoveTagList()
+	}
+	return ""
 }
 
 // leftPanelTitleAndContent returns the title and rendered list content for
@@ -158,4 +169,43 @@ func (m model) renderArticleModal() string {
 	}
 
 	return out
+}
+
+// renderModal wraps a title and body in the standard modal chrome (styled
+// title, body, help line, all inside a bordered box), used by every
+// full-screen overlay (add tag, remove tag, ...).
+func (m model) renderModal(title, body, help string) string {
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		m.styles.focusedTitle.Render(title),
+		"",
+		body,
+		"",
+		m.styles.help.Render(help),
+	)
+	return m.styles.focusedBorder.Render(content)
+}
+
+// renderAddTagList returns a styled modal box containing the tag-name input
+// and a picker list of existing tags. Up/down navigate the picker, enter
+// confirms (typed name, or the highlighted tag if the input is empty), and
+// esc closes the modal.
+func (m model) renderAddTagList() string {
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		m.tagInput.View(),
+		"",
+		m.tagPickerList.View(),
+	)
+	return m.renderModal("Add tag", body, "↑/↓ pick existing • enter confirm • esc cancel")
+}
+
+// renderRemoveTagList returns a styled modal box containing the tags
+// currently attached to the article, letting the user navigate and remove
+// them one at a time. Up/down navigate the list, enter removes the
+// highlighted tag, and esc closes the modal.
+func (m model) renderRemoveTagList() string {
+	body := m.removeTagList.View()
+	if len(m.removeTagList.Items()) == 0 {
+		body = m.styles.help.Render("This article has no tags")
+	}
+	return m.renderModal("Remove tag", body, "↑/↓ select • enter remove • esc close")
 }
