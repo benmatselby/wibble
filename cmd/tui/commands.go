@@ -33,6 +33,15 @@ func fetchTags(db dao.DaoClient) tea.Cmd {
 	}
 }
 
+// fetchArticleTags is a Bubbletea command that loads the tags currently
+// attached to a given article, used by the remove-tag picker.
+func fetchArticleTags(db dao.DaoClient, articleID int64) tea.Cmd {
+	return func() tea.Msg {
+		tags, err := db.GetTagsForArticle(articleID)
+		return articleTagsLoadedMsg{tags: tags, err: err}
+	}
+}
+
 // fetchArticlesByTag is a Bubbletea command that loads articles for a given tag.
 func fetchArticlesByTag(db dao.DaoClient, tagID int64) tea.Cmd {
 	return func() tea.Msg {

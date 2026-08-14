@@ -80,15 +80,19 @@ func newTestModel(feedItems []list.Item) model {
 
 	feedsList := list.New(feedItems, delegate, 80, 24)
 	tagsList := list.New([]list.Item{}, delegate, 80, 24)
+	tagPickerList := list.New([]list.Item{}, delegate, 80, 24)
+	removeTagList := list.New([]list.Item{}, delegate, 80, 24)
 	articlesList := list.New([]list.Item{}, delegate, 80, 24)
 
 	return model{
-		db:           &mockDB{},
-		feedsList:    &feedsList,
-		tagsList:     &tagsList,
-		articlesList: &articlesList,
-		tagInput:     textinput.New(),
-		keys:         DefaultKeyMap,
+		db:            &mockDB{},
+		feedsList:     &feedsList,
+		tagsList:      &tagsList,
+		tagPickerList: &tagPickerList,
+		removeTagList: &removeTagList,
+		articlesList:  &articlesList,
+		tagInput:      textinput.New(),
+		keys:          DefaultKeyMap,
 	}
 }
 
@@ -461,23 +465,68 @@ func TestHandleStartAddTag_OpensOverlay(t *testing.T) {
 	}
 }
 
-func TestHandleRemoveTagFromArticle_RemovesMostRecentlyAdded(t *testing.T) {
+func TestHandleStartRemoveTag_FetchesArticleTags(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	m.focusedPane = paneArticles
+	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
+
+	result, cmd, handled := handleStartRemoveTag(m)
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd == nil {
+		t.Error("cmd should not be nil (should fetch article tags)")
+	}
+
+	updated := result.(model)
+	if !updated.removingTag {
+		t.Error("removingTag should be true after starting remove-tag")
+	}
+}
+
+func TestHandleStartRemoveTag_NoSelection(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	m.focusedPane = paneArticles
+
+	result, cmd, handled := handleStartRemoveTag(m)
+	if !handled {
+		t.Error("handled = false, want true")
+	}
+	if cmd != nil {
+		t.Error("cmd should be nil when no article is selected")
+	}
+	_ = result
+}
+
+func TestHandleArticleTagsLoaded_PopulatesRemoveTagList(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	msg := articleTagsLoadedMsg{tags: []models.Tag{{ID: 10, Name: "zebra"}, {ID: 20, Name: "apple"}}}
+
+	result, cmd := handleArticleTagsLoaded(msg, m)
+	_ = cmd
+	updated := result.(model)
+
+	if len(updated.removeTagList.Items()) != 2 {
+		t.Fatalf("expected 2 items in removeTagList, got %d", len(updated.removeTagList.Items()))
+	}
+}
+
+func TestHandleRemoveTagKeypress_EnterRemovesSelectedTag(t *testing.T) {
 	m := newTestModel([]list.Item{})
 	m.focusedPane = paneArticles
 	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
 
 	db := m.db.(*mockDB)
-	// "zebra" is added first but is alphabetically last, so a naive
-	// alphabetical-order implementation would incorrectly remove it here
-	// instead of "apple", which was added most recently.
 	db.tagged = map[int64][]models.Tag{
 		1: {{ID: 10, Name: "zebra"}, {ID: 20, Name: "apple"}},
 	}
+	_ = m.removeTagList.SetItems([]list.Item{
+		tagItem{tag: models.Tag{ID: 10, Name: "zebra"}},
+		tagItem{tag: models.Tag{ID: 20, Name: "apple"}},
+	})
+	m.removeTagList.Select(1) // highlight "apple"
 
-	result, cmd, handled := handleRemoveTagFromArticle(m)
-	if !handled {
-		t.Error("handled = false, want true")
-	}
+	result, cmd := handleRemoveTagKeypress(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}), m)
 	if cmd == nil {
 		t.Error("cmd should not be nil")
 	}
@@ -492,17 +541,14 @@ func TestHandleRemoveTagFromArticle_RemovesMostRecentlyAdded(t *testing.T) {
 	}
 }
 
-func TestHandleRemoveTagFromArticle_NoTags(t *testing.T) {
+func TestHandleRemoveTagKeypress_NoSelection(t *testing.T) {
 	m := newTestModel([]list.Item{})
 	m.focusedPane = paneArticles
 	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
 
-	result, cmd, handled := handleRemoveTagFromArticle(m)
-	if !handled {
-		t.Error("handled = false, want true")
-	}
-	if cmd == nil {
-		t.Error("cmd should not be nil for the status message")
+	result, cmd := handleRemoveTagKeypress(tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter}), m)
+	if cmd != nil {
+		t.Error("cmd should be nil when no tag is selected")
 	}
 	_ = result
 
@@ -512,18 +558,19 @@ func TestHandleRemoveTagFromArticle_NoTags(t *testing.T) {
 	}
 }
 
-func TestHandleRemoveTagFromArticle_NoSelection(t *testing.T) {
+func TestHandleRemoveTagKeypress_EscClosesOverlay(t *testing.T) {
 	m := newTestModel([]list.Item{})
-	m.focusedPane = paneArticles
+	m.removingTag = true
 
-	result, cmd, handled := handleRemoveTagFromArticle(m)
-	if !handled {
-		t.Error("handled = false, want true")
-	}
+	result, cmd := handleRemoveTagKeypress(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}), m)
 	if cmd != nil {
-		t.Error("cmd should be nil when no article is selected")
+		t.Error("cmd should be nil on esc")
 	}
-	_ = result
+
+	updated := result.(model)
+	if updated.removingTag {
+		t.Error("removingTag should be false after esc")
+	}
 }
 
 func TestHandleTagInputKeypress_EnterAddsTag(t *testing.T) {

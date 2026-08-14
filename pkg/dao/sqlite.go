@@ -444,8 +444,7 @@ func (c *SQLiteClient) RemoveTagFromArticle(articleID, tagID int64) error {
 }
 
 // GetTagsForArticle retrieves all tags associated with a given article,
-// ordered from least to most recently added, so the last element of the
-// returned slice is the most recently added tag.
+// ordered by when they were added (oldest first).
 func (c *SQLiteClient) GetTagsForArticle(articleID int64) ([]models.Tag, error) {
 	utils.Log(fmt.Sprintf("GetTagsForArticle started for article ID %d", articleID))
 
