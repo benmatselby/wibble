@@ -6,16 +6,34 @@ import (
 	"github.com/benmatselby/wibble/pkg/models"
 )
 
-func TestTagItemTitle(t *testing.T) {
+func TestTagItemTitle_WithCount(t *testing.T) {
 	item := tagItem{
 		tag: models.Tag{
 			Name:         "research",
 			ArticleCount: 3,
 		},
+		showCount: true,
 	}
 
 	got := item.Title()
 	want := "   [3] research"
+
+	if got != want {
+		t.Errorf("Title() = %q, want %q", got, want)
+	}
+}
+
+func TestTagItemTitle_WithoutCount(t *testing.T) {
+	item := tagItem{
+		tag: models.Tag{
+			Name:         "research",
+			ArticleCount: 0,
+		},
+		showCount: false,
+	}
+
+	got := item.Title()
+	want := "research"
 
 	if got != want {
 		t.Errorf("Title() = %q, want %q", got, want)

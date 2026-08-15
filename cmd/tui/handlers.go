@@ -32,7 +32,7 @@ func handleTagsLoaded(msg tagsLoadedMsg, m model) (tea.Model, tea.Cmd) {
 	}
 	items := make([]list.Item, len(msg.tags))
 	for i, t := range msg.tags {
-		items[i] = tagItem{tag: t}
+		items[i] = tagItem{tag: t, showCount: true}
 	}
 	cmd := m.tagsList.SetItems(items)
 
