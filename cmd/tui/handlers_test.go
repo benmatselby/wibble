@@ -498,16 +498,47 @@ func TestHandleStartRemoveTag_NoSelection(t *testing.T) {
 	_ = result
 }
 
+func TestHandleTagsLoaded_ShowsArticleCountBadge(t *testing.T) {
+	m := newTestModel([]list.Item{})
+	msg := tagsLoadedMsg{tags: []models.Tag{{ID: 1, Name: "research", ArticleCount: 3}}}
+
+	result, _ := handleTagsLoaded(msg, m)
+	updated := result.(model)
+
+	items := updated.tagsList.Items()
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item in tagsList, got %d", len(items))
+	}
+	if got, want := items[0].(tagItem).Title(), "   [3] research"; got != want {
+		t.Errorf("Title() = %q, want %q (count badge should show in Tags panel)", got, want)
+	}
+}
+
 func TestHandleArticleTagsLoaded_PopulatesRemoveTagList(t *testing.T) {
 	m := newTestModel([]list.Item{})
-	msg := articleTagsLoadedMsg{tags: []models.Tag{{ID: 10, Name: "zebra"}, {ID: 20, Name: "apple"}}}
+	// ArticleCount is deliberately nonzero here to prove the remove-tag
+	// picker doesn't render a "[N]" count badge, even when the field is
+	// populated: GetTagsForArticle never populates it in practice, and
+	// rendering it in this list would be misleading regardless (see
+	// tagItem's showCount field).
+	msg := articleTagsLoadedMsg{tags: []models.Tag{
+		{ID: 10, Name: "zebra", ArticleCount: 5},
+		{ID: 20, Name: "apple", ArticleCount: 2},
+	}}
 
 	result, cmd := handleArticleTagsLoaded(msg, m)
 	_ = cmd
 	updated := result.(model)
 
-	if len(updated.removeTagList.Items()) != 2 {
-		t.Fatalf("expected 2 items in removeTagList, got %d", len(updated.removeTagList.Items()))
+	items := updated.removeTagList.Items()
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items in removeTagList, got %d", len(items))
+	}
+	if got, want := items[0].(tagItem).Title(), "zebra"; got != want {
+		t.Errorf("Title() = %q, want %q (no count badge in remove-tag picker)", got, want)
+	}
+	if got, want := items[1].(tagItem).Title(), "apple"; got != want {
+		t.Errorf("Title() = %q, want %q (no count badge in remove-tag picker)", got, want)
 	}
 }
 
