@@ -29,6 +29,7 @@ clean: ## Clean the local dependencies
 .PHONY: install
 install: ## Install the local dependencies
 	go get ./...
+	go install go.uber.org/mock/mockgen@latest
 
 .PHONY: lint
 lint: ## Vet the code
@@ -38,13 +39,17 @@ lint: ## Vet the code
 build: ## Build the application
 	go build -o $(NAME) .
 
+.PHONY:
+mocks: ## Generate the mocks
+	go generate -x ./...
+
 .PHONY: test
-test: ## Run the unit tests
+test: mocks ## Run the unit tests
 	go test ./... -coverprofile=coverage.out
 	go tool cover -func=coverage.out
 
 .PHONY: test-cov
-test-cov: test ## Run the unit tests with coverage
+test-cov: mocks test ## Run the unit tests with coverage
 	go tool cover -html=coverage.out -o build/coverage.html
 
 .PHONY: all

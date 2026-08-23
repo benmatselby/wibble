@@ -33,3 +33,5 @@ type DaoClient interface {
 	// Maintenance
 	Close() error
 }
+
+//go:generate mockgen -source=client.go -package=dao -destination=mock_client.go
