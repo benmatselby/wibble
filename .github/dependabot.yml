@@ -8,7 +8,7 @@ updates:
     cooldown:
       default-days: 7
     commit-message:
-      prefix: "GHA"
+      prefix: "chore(deps)"
 
   # Maintain dependencies for Go modules
   - package-ecosystem: "gomod"
@@ -18,5 +18,4 @@ updates:
     cooldown:
       default-days: 7
     commit-message:
-      prefix: "gomod"
-
+      prefix: "chore(deps)"
