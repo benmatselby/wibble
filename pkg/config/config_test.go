@@ -34,6 +34,24 @@ func TestGetFeeds_ReturnsEmptyWhenNotSet(t *testing.T) {
 	}
 }
 
+func TestGetFeeds_ReturnsErrorOnInvalidType(t *testing.T) {
+	viper.Reset()
+	viper.Set("feeds", map[string]string{"a": "b"})
+
+	feeds, err := config.GetFeeds()
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+
+	if err.Error() != "failed to read feeds from config" {
+		t.Errorf("unexpected error message: %v", err)
+	}
+
+	if feeds != nil {
+		t.Errorf("expected nil feeds, got %v", feeds)
+	}
+}
+
 func TestGetRefreshInterval_ReturnsConfiguredValue(t *testing.T) {
 	viper.Reset()
 	viper.Set("refresh_interval", 30)
@@ -70,5 +88,15 @@ func TestGetRefreshInterval_ReturnsDefaultForNegative(t *testing.T) {
 	interval := config.GetRefreshInterval()
 	if interval != 10 {
 		t.Errorf("expected default 10 for negative value, got %d", interval)
+	}
+}
+
+func TestGetRefreshInterval_ReturnsDefaultOnInvalidType(t *testing.T) {
+	viper.Reset()
+	viper.Set("refresh_interval", map[string]string{"a": "b"})
+
+	interval := config.GetRefreshInterval()
+	if interval != 10 {
+		t.Errorf("expected default 10 for invalid type, got %d", interval)
 	}
 }
