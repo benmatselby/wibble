@@ -12,100 +12,8 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// mockDB is a minimal implementation of dao.DaoClient for testing.
-type mockDB struct {
-	articles      []models.Article
-	feeds         []models.Feed
-	tags          []models.Tag
-	tagged        map[int64][]models.Tag
-	addTagFn      func(name string) (models.Tag, error)
-	deleteTagFn   func(tagID int64) error
-	deletedTagIDs []int64
-	removedTags   []int64
-}
-
-func (m *mockDB) AddFeed(feed models.Feed) (models.Feed, error) { return feed, nil }
-func (m *mockDB) GetFeeds() ([]models.Feed, error)              { return m.feeds, nil }
-func (m *mockDB) AddArticle(article models.Article) error       { return nil }
-func (m *mockDB) GetArticlesByFeedID(feedID int64) ([]models.Article, error) {
-	return m.articles, nil
-}
-func (m *mockDB) GetArticleByID(articleID int64) (*models.Article, error) { return nil, nil }
-func (m *mockDB) MarkArticleAsRead(articleID int64) error                 { return nil }
-func (m *mockDB) MarkArticlesAsRead(feedID int64) error                   { return nil }
-func (m *mockDB) DeleteFeedWithArticles(feedID int64) (int64, error)      { return 0, nil }
-func (m *mockDB) Close() error                                            { return nil }
-
-func (m *mockDB) AddTag(name string) (models.Tag, error) {
-	if m.addTagFn != nil {
-		return m.addTagFn(name)
-	}
-	return models.Tag{ID: 1, Name: name}, nil
-}
-func (m *mockDB) GetTags() ([]models.Tag, error) { return m.tags, nil }
-func (m *mockDB) DeleteTag(tagID int64) error {
-	m.deletedTagIDs = append(m.deletedTagIDs, tagID)
-	if m.deleteTagFn != nil {
-		return m.deleteTagFn(tagID)
-	}
-	return nil
-}
-
-func (m *mockDB) AddTagToArticle(articleID, tagID int64) error {
-	if m.tagged == nil {
-		m.tagged = map[int64][]models.Tag{}
-	}
-	m.tagged[articleID] = append(m.tagged[articleID], models.Tag{ID: tagID})
-	return nil
-}
-
-func (m *mockDB) RemoveTagFromArticle(articleID, tagID int64) error {
-	m.removedTags = append(m.removedTags, tagID)
-	tags := m.tagged[articleID]
-	for i, t := range tags {
-		if t.ID == tagID {
-			m.tagged[articleID] = append(tags[:i], tags[i+1:]...)
-			break
-		}
-	}
-	return nil
-}
-
-func (m *mockDB) GetTagsForArticle(articleID int64) ([]models.Tag, error) {
-	return m.tagged[articleID], nil
-}
-
-func (m *mockDB) GetArticlesByTagID(tagID int64) ([]models.Article, error) {
-	return m.articles, nil
-}
-
-// newTestModel constructs a minimal model suitable for handler tests.
-func newTestModel(feedItems []list.Item, optionalArticleItems ...[]list.Item) model {
-	delegate := list.NewDefaultDelegate()
-	delegate.ShowDescription = false
-	articleItems := []list.Item{}
-	if len(optionalArticleItems) > 0 {
-		articleItems = optionalArticleItems[0]
-	}
-
-	feedsList := list.New(feedItems, delegate, 80, 24)
-	tagsList := list.New([]list.Item{}, delegate, 80, 24)
-	tagPickerList := list.New([]list.Item{}, delegate, 80, 24)
-	removeTagList := list.New([]list.Item{}, delegate, 80, 24)
-	articlesList := list.New(articleItems, delegate, 80, 24)
-
-	return model{
-		db:            &mockDB{},
-		feedsList:     &feedsList,
-		tagsList:      &tagsList,
-		tagPickerList: &tagPickerList,
-		removeTagList: &removeTagList,
-		articlesList:  &articlesList,
-		tagInput:      textinput.New(),
-		keys:          DefaultKeyMap,
-	}
-}
-
+// newTestModelWithDB constructs a minimal model suitable for handler tests,
+// backed by a gomock-generated dao.MockDaoClient.
 func newTestModelWithDB(t *testing.T, feedItems []list.Item, optionalArticleItems ...[]list.Item) (model, *dao.MockDaoClient) {
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
@@ -121,7 +29,6 @@ func newTestModelWithDB(t *testing.T, feedItems []list.Item, optionalArticleItem
 	articlesList := list.New(articleItems, delegate, 80, 24)
 
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	db := dao.NewMockDaoClient(ctrl)
 
@@ -138,7 +45,7 @@ func newTestModelWithDB(t *testing.T, feedItems []list.Item, optionalArticleItem
 }
 
 func TestHandleStatusMessage_SetsStatus(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	msg := statusMsg{text: "all good", level: statusInfo}
 
 	result, cmd := handleStatusMessage(m, msg)
@@ -162,7 +69,7 @@ func TestHandleStatusMessage_SetsStatus(t *testing.T) {
 }
 
 func TestHandleStatusMessage_ErrorLevel(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	msg := statusMsg{text: "something broke", level: statusError}
 
 	result, _ := handleStatusMessage(m, msg)
@@ -180,7 +87,7 @@ func TestHandleStatusMessage_ErrorLevel(t *testing.T) {
 }
 
 func TestHandleOpenFeed_NilSelection(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 
 	result, cmd, handled := handleOpenFeed(m)
 
@@ -196,7 +103,7 @@ func TestHandleOpenFeed_NilSelection(t *testing.T) {
 }
 
 func TestHandleArticlesLoaded_Error(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	msg := articlesLoadedMsg{err: fmt.Errorf("db failure")}
 
 	result, cmd := handleArticlesLoaded(msg, m)
@@ -218,7 +125,7 @@ func TestHandleArticlesLoaded_Error(t *testing.T) {
 }
 
 func TestHandleArticlesLoaded_Success(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	articles := []models.Article{
 		{ID: 1, Title: "Article One"},
 		{ID: 2, Title: "Article Two"},
@@ -240,7 +147,7 @@ func TestHandleArticlesLoaded_Success(t *testing.T) {
 }
 
 func TestHandleArticlesLoaded_Empty(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	msg := articlesLoadedMsg{articles: []models.Article{}}
 
 	result, _ := handleArticlesLoaded(msg, m)
@@ -263,7 +170,7 @@ func TestHandleOpenFeed_SelectsFeed(t *testing.T) {
 		Title: "Test Feed",
 	}
 	items := []list.Item{feedItem{feed: feed}}
-	m := newTestModel(items)
+	m, _ := newTestModelWithDB(t, items)
 
 	result, cmd, handled := handleOpenFeed(m)
 
@@ -288,7 +195,7 @@ func TestHandleOpenFeed_SelectsFeed(t *testing.T) {
 
 func TestHandleOpenTag_SelectsTag(t *testing.T) {
 	tag := models.Tag{ID: 7, Name: "research"}
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	items := []list.Item{tagItem{tag: tag}}
 	_ = m.tagsList.SetItems(items)
 
@@ -314,7 +221,7 @@ func TestHandleOpenTag_SelectsTag(t *testing.T) {
 }
 
 func TestHandleOpenTag_NilSelection(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 
 	result, cmd, handled := handleOpenTag(m)
 
@@ -331,8 +238,7 @@ func TestHandleOpenTag_NilSelection(t *testing.T) {
 
 func TestHandleDeleteTag_ArmsConfirmation(t *testing.T) {
 	tag := models.Tag{ID: 7, Name: "research"}
-	m := newTestModel([]list.Item{})
-	db := m.db.(*mockDB)
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	items := []list.Item{tagItem{tag: tag}}
 	_ = m.tagsList.SetItems(items)
 
@@ -351,14 +257,12 @@ func TestHandleDeleteTag_ArmsConfirmation(t *testing.T) {
 	if updated.confirmDeleteTag == nil || updated.confirmDeleteTag.ID != tag.ID {
 		t.Errorf("confirmDeleteTag = %v, want tag ID %d", updated.confirmDeleteTag, tag.ID)
 	}
-	if len(db.deletedTagIDs) != 0 {
-		t.Errorf("deletedTagIDs = %v, want none until confirmed", db.deletedTagIDs)
-	}
+	// No mock expectations are set up, so a strict-mode call to DeleteTag
+	// here (before confirmation) would fail the test on its own.
 }
 
 func TestHandleDeleteTag_NilSelection(t *testing.T) {
-	m := newTestModel([]list.Item{})
-	db := m.db.(*mockDB)
+	m, _ := newTestModelWithDB(t, []list.Item{})
 
 	result, cmd, handled := handleDeleteTag(m)
 
@@ -371,15 +275,12 @@ func TestHandleDeleteTag_NilSelection(t *testing.T) {
 	if result == nil {
 		t.Error("returned model should not be nil")
 	}
-	if len(db.deletedTagIDs) != 0 {
-		t.Errorf("deletedTagIDs = %v, want none", db.deletedTagIDs)
-	}
 }
 
 func TestHandleConfirmDeleteTagKeypress_YConfirmsDeletion(t *testing.T) {
 	tag := models.Tag{ID: 7, Name: "research"}
-	m := newTestModel([]list.Item{})
-	db := m.db.(*mockDB)
+	m, db := newTestModelWithDB(t, []list.Item{})
+	db.EXPECT().DeleteTag(tag.ID).Return(nil).Times(1)
 	m.confirmDeleteTag = &tag
 
 	msg := tea.KeyPressMsg(tea.Key{Code: 'y', Text: "y"})
@@ -395,15 +296,11 @@ func TestHandleConfirmDeleteTagKeypress_YConfirmsDeletion(t *testing.T) {
 	if updated.confirmDeleteTag != nil {
 		t.Error("confirmDeleteTag should be cleared after confirmation")
 	}
-	if len(db.deletedTagIDs) != 1 || db.deletedTagIDs[0] != tag.ID {
-		t.Errorf("deletedTagIDs = %v, want [%d]", db.deletedTagIDs, tag.ID)
-	}
 }
 
 func TestHandleConfirmDeleteTagKeypress_OtherKeyCancels(t *testing.T) {
 	tag := models.Tag{ID: 7, Name: "research"}
-	m := newTestModel([]list.Item{})
-	db := m.db.(*mockDB)
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	m.confirmDeleteTag = &tag
 
 	msg := tea.KeyPressMsg(tea.Key{Code: tea.KeyEsc})
@@ -419,18 +316,14 @@ func TestHandleConfirmDeleteTagKeypress_OtherKeyCancels(t *testing.T) {
 	if updated.confirmDeleteTag != nil {
 		t.Error("confirmDeleteTag should be cleared after cancelling")
 	}
-	if len(db.deletedTagIDs) != 0 {
-		t.Errorf("deletedTagIDs = %v, want none", db.deletedTagIDs)
-	}
+	// No mock expectations are set up, so a strict-mode call to DeleteTag
+	// would fail the test on its own.
 }
 
 func TestHandleConfirmDeleteTagKeypress_Error(t *testing.T) {
 	tag := models.Tag{ID: 9, Name: "broken"}
-	m := newTestModel([]list.Item{})
-	db := m.db.(*mockDB)
-	db.deleteTagFn = func(tagID int64) error {
-		return fmt.Errorf("db failure")
-	}
+	m, db := newTestModelWithDB(t, []list.Item{})
+	db.EXPECT().DeleteTag(tag.ID).Return(fmt.Errorf("db failure")).Times(1)
 	m.confirmDeleteTag = &tag
 
 	msg := tea.KeyPressMsg(tea.Key{Code: 'y', Text: "y"})
@@ -453,7 +346,7 @@ func TestHandleConfirmDeleteTagKeypress_Error(t *testing.T) {
 }
 
 func TestHandleToggleLeftPane_TogglesMode(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 
 	result, cmd, handled := handleToggleLeftPane(m)
 	if !handled {
@@ -475,7 +368,7 @@ func TestHandleToggleLeftPane_TogglesMode(t *testing.T) {
 }
 
 func TestHandleStartAddTag_NoSelection(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	m.focusedPane = paneArticles
 
 	result, cmd, handled := handleStartAddTag(m)
@@ -492,7 +385,7 @@ func TestHandleStartAddTag_NoSelection(t *testing.T) {
 }
 
 func TestHandleStartAddTag_OpensOverlay(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	m.focusedPane = paneArticles
 	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
 
@@ -507,7 +400,7 @@ func TestHandleStartAddTag_OpensOverlay(t *testing.T) {
 }
 
 func TestHandleStartRemoveTag_FetchesArticleTags(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	m.focusedPane = paneArticles
 	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
 
@@ -526,7 +419,7 @@ func TestHandleStartRemoveTag_FetchesArticleTags(t *testing.T) {
 }
 
 func TestHandleStartRemoveTag_NoSelection(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	m.focusedPane = paneArticles
 
 	result, cmd, handled := handleStartRemoveTag(m)
@@ -540,7 +433,7 @@ func TestHandleStartRemoveTag_NoSelection(t *testing.T) {
 }
 
 func TestHandleTagsLoaded_ShowsArticleCountBadge(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	msg := tagsLoadedMsg{tags: []models.Tag{{ID: 1, Name: "research", ArticleCount: 3}}}
 
 	result, _ := handleTagsLoaded(msg, m)
@@ -556,7 +449,7 @@ func TestHandleTagsLoaded_ShowsArticleCountBadge(t *testing.T) {
 }
 
 func TestHandleArticleTagsLoaded_PopulatesRemoveTagList(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	// ArticleCount is deliberately nonzero here to prove the remove-tag
 	// picker doesn't render a "[N]" count badge, even when the field is
 	// populated: GetTagsForArticle never populates it in practice, and
@@ -584,14 +477,12 @@ func TestHandleArticleTagsLoaded_PopulatesRemoveTagList(t *testing.T) {
 }
 
 func TestHandleRemoveTagKeypress_EnterRemovesSelectedTag(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, db := newTestModelWithDB(t, []list.Item{})
 	m.focusedPane = paneArticles
 	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
 
-	db := m.db.(*mockDB)
-	db.tagged = map[int64][]models.Tag{
-		1: {{ID: 10, Name: "zebra"}, {ID: 20, Name: "apple"}},
-	}
+	db.EXPECT().RemoveTagFromArticle(int64(1), int64(20)).Return(nil).Times(1)
+
 	_ = m.removeTagList.SetItems([]list.Item{
 		tagItem{tag: models.Tag{ID: 10, Name: "zebra"}},
 		tagItem{tag: models.Tag{ID: 20, Name: "apple"}},
@@ -603,18 +494,10 @@ func TestHandleRemoveTagKeypress_EnterRemovesSelectedTag(t *testing.T) {
 		t.Error("cmd should not be nil")
 	}
 	_ = result
-
-	if len(db.removedTags) != 1 || db.removedTags[0] != 20 {
-		t.Errorf("expected tag ID 20 (apple) to be removed, got %v", db.removedTags)
-	}
-	remaining := db.tagged[1]
-	if len(remaining) != 1 || remaining[0].Name != "zebra" {
-		t.Errorf("expected zebra to remain, got %v", remaining)
-	}
 }
 
 func TestHandleRemoveTagKeypress_NoSelection(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	m.focusedPane = paneArticles
 	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
 
@@ -623,15 +506,12 @@ func TestHandleRemoveTagKeypress_NoSelection(t *testing.T) {
 		t.Error("cmd should be nil when no tag is selected")
 	}
 	_ = result
-
-	db := m.db.(*mockDB)
-	if len(db.removedTags) != 0 {
-		t.Errorf("expected no tags removed, got %v", db.removedTags)
-	}
+	// No mock expectations are set up, so a strict-mode call to
+	// RemoveTagFromArticle would fail the test on its own.
 }
 
 func TestHandleRemoveTagKeypress_EscClosesOverlay(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, _ := newTestModelWithDB(t, []list.Item{})
 	m.removingTag = true
 
 	result, cmd := handleRemoveTagKeypress(tea.KeyPressMsg(tea.Key{Code: tea.KeyEscape}), m)
@@ -646,11 +526,14 @@ func TestHandleRemoveTagKeypress_EscClosesOverlay(t *testing.T) {
 }
 
 func TestHandleTagInputKeypress_EnterAddsTag(t *testing.T) {
-	m := newTestModel([]list.Item{})
+	m, db := newTestModelWithDB(t, []list.Item{})
 	m.focusedPane = paneArticles
 	_ = m.articlesList.SetItems([]list.Item{articleItem{article: models.Article{ID: 1, Title: "A1"}}})
 	m.addingTag = true
 	m.tagInput.SetValue("research")
+
+	db.EXPECT().AddTag("research").Return(models.Tag{ID: 1, Name: "research"}, nil).Times(1)
+	db.EXPECT().AddTagToArticle(int64(1), int64(1)).Return(nil).Times(1)
 
 	msg := tea.KeyPressMsg(tea.Key{Code: tea.KeyEnter})
 
