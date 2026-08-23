@@ -73,6 +73,10 @@ type model struct {
 	status           *statusMsg
 }
 
+// Update implements tea.Model's Update method, the central message-dispatch
+// and state-transition point for the TUI. It is called by Bubble Tea for
+// every incoming message and returns the (possibly modified) model along
+// with an optional command to run.
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.BackgroundColorMsg:
