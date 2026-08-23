@@ -7,7 +7,9 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/benmatselby/wibble/pkg/dao"
 	"github.com/benmatselby/wibble/pkg/models"
+	"go.uber.org/mock/gomock"
 )
 
 // mockDB is a minimal implementation of dao.DaoClient for testing.
@@ -48,6 +50,7 @@ func (m *mockDB) DeleteTag(tagID int64) error {
 	}
 	return nil
 }
+
 func (m *mockDB) AddTagToArticle(articleID, tagID int64) error {
 	if m.tagged == nil {
 		m.tagged = map[int64][]models.Tag{}
@@ -55,6 +58,7 @@ func (m *mockDB) AddTagToArticle(articleID, tagID int64) error {
 	m.tagged[articleID] = append(m.tagged[articleID], models.Tag{ID: tagID})
 	return nil
 }
+
 func (m *mockDB) RemoveTagFromArticle(articleID, tagID int64) error {
 	m.removedTags = append(m.removedTags, tagID)
 	tags := m.tagged[articleID]
@@ -66,23 +70,29 @@ func (m *mockDB) RemoveTagFromArticle(articleID, tagID int64) error {
 	}
 	return nil
 }
+
 func (m *mockDB) GetTagsForArticle(articleID int64) ([]models.Tag, error) {
 	return m.tagged[articleID], nil
 }
+
 func (m *mockDB) GetArticlesByTagID(tagID int64) ([]models.Article, error) {
 	return m.articles, nil
 }
 
 // newTestModel constructs a minimal model suitable for handler tests.
-func newTestModel(feedItems []list.Item) model {
+func newTestModel(feedItems []list.Item, optionalArticleItems ...[]list.Item) model {
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
+	articleItems := []list.Item{}
+	if len(optionalArticleItems) > 0 {
+		articleItems = optionalArticleItems[0]
+	}
 
 	feedsList := list.New(feedItems, delegate, 80, 24)
 	tagsList := list.New([]list.Item{}, delegate, 80, 24)
 	tagPickerList := list.New([]list.Item{}, delegate, 80, 24)
 	removeTagList := list.New([]list.Item{}, delegate, 80, 24)
-	articlesList := list.New([]list.Item{}, delegate, 80, 24)
+	articlesList := list.New(articleItems, delegate, 80, 24)
 
 	return model{
 		db:            &mockDB{},
@@ -94,6 +104,37 @@ func newTestModel(feedItems []list.Item) model {
 		tagInput:      textinput.New(),
 		keys:          DefaultKeyMap,
 	}
+}
+
+func newTestModelWithDB(t *testing.T, feedItems []list.Item, optionalArticleItems ...[]list.Item) (model, *dao.MockDaoClient) {
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = false
+	articleItems := []list.Item{}
+	if len(optionalArticleItems) > 0 {
+		articleItems = optionalArticleItems[0]
+	}
+
+	feedsList := list.New(feedItems, delegate, 80, 24)
+	tagsList := list.New([]list.Item{}, delegate, 80, 24)
+	tagPickerList := list.New([]list.Item{}, delegate, 80, 24)
+	removeTagList := list.New([]list.Item{}, delegate, 80, 24)
+	articlesList := list.New(articleItems, delegate, 80, 24)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	db := dao.NewMockDaoClient(ctrl)
+
+	return model{
+		db:            db,
+		feedsList:     &feedsList,
+		tagsList:      &tagsList,
+		tagPickerList: &tagPickerList,
+		removeTagList: &removeTagList,
+		articlesList:  &articlesList,
+		tagInput:      textinput.New(),
+		keys:          DefaultKeyMap,
+	}, db
 }
 
 func TestHandleStatusMessage_SetsStatus(t *testing.T) {
@@ -623,5 +664,79 @@ func TestHandleTagInputKeypress_EnterAddsTag(t *testing.T) {
 	updated := result.(model)
 	if updated.addingTag {
 		t.Error("addingTag should be false after submitting")
+	}
+}
+
+func TestHandleMarkItemAsRead_NoOpWhenArticleLinkIsEmpty(t *testing.T) {
+	article := models.Article{ID: 1, Title: "Test Article"}
+	m, db := newTestModelWithDB(t, []list.Item{}, []list.Item{articleItem{article: article}})
+
+	db.EXPECT().MarkArticleAsRead(article.ID).MaxTimes(0)
+
+	_, command, wasHandled := handleMarkItemAsRead(m)
+
+	if command != nil {
+		t.Fatal("expected command to be nil, got command")
+	}
+
+	if wasHandled != true {
+		t.Fatal("expected wasHandled to be true, got false")
+	}
+}
+
+func TestHandleMarkItemAsRead_ReturnsErrorMessageWhenArticleCannotBeMarkedAsRead(t *testing.T) {
+	article := models.Article{ID: 1, Title: "Test Article", Link: "http://example.com"}
+	m, db := newTestModelWithDB(t, []list.Item{}, []list.Item{articleItem{article: article}})
+
+	db.EXPECT().MarkArticleAsRead(article.ID).Return(fmt.Errorf("db failure")).Times(1)
+
+	_, command, wasHandled := handleMarkItemAsRead(m)
+
+	if command == nil {
+		t.Fatal("expected command to not be nil, got nil")
+	}
+
+	message := command()
+	if _, ok := message.(statusMsg); !ok {
+		t.Fatal("expected message to be of type statusMsg")
+	}
+
+	if wasHandled != true {
+		t.Fatal("expected wasHandled to be true, got false")
+	}
+}
+
+func TestHandleMarkItemAsRead_PicksNextArticleItemToRead(t *testing.T) {
+	article := models.Article{ID: 1, Title: "Test Article", Link: "http://example.com"}
+	nextArticle := models.Article{ID: 2, Title: "Next Article", Link: "http://example.com/next"}
+	m, db := newTestModelWithDB(t, []list.Item{}, []list.Item{articleItem{article: article}, articleItem{article: nextArticle}})
+
+	db.EXPECT().MarkArticleAsRead(article.ID).MaxTimes(1).Return(nil)
+
+	if m.articlesList.GlobalIndex() != 0 {
+		t.Fatalf("expected initial global index to be 0, got %d", m.articlesList.GlobalIndex())
+	}
+
+	_, _, _ = handleMarkItemAsRead(m)
+
+	if m.articlesList.GlobalIndex() != 1 {
+		t.Fatalf("expected global index to be 1 after marking as read, got %d", m.articlesList.GlobalIndex())
+	}
+}
+
+func TestHandleMarkItemAsRead_StaysOnLastItemIfItsTheLastItem(t *testing.T) {
+	article := models.Article{ID: 1, Title: "Test Article", Link: "http://example.com"}
+	m, db := newTestModelWithDB(t, []list.Item{}, []list.Item{articleItem{article: article}})
+
+	db.EXPECT().MarkArticleAsRead(article.ID).MaxTimes(1).Return(nil)
+
+	if m.articlesList.GlobalIndex() != 0 {
+		t.Fatalf("expected initial global index to be 0, got %d", m.articlesList.GlobalIndex())
+	}
+
+	_, _, _ = handleMarkItemAsRead(m)
+
+	if m.articlesList.GlobalIndex() != 0 {
+		t.Fatalf("expected global index to be 0 after marking as read, got %d", m.articlesList.GlobalIndex())
 	}
 }

@@ -197,23 +197,35 @@ func handleOpenArticle(m model) (tea.Model, tea.Cmd, bool) {
 	), true
 }
 
+// handleMarkItemAsRead marks the currently selected article as read and
+// moves the list selection to the next article, so the user can skip
+// over their articles quicker whilst marking as read.
 func handleMarkItemAsRead(m model) (tea.Model, tea.Cmd, bool) {
-	sel := m.articlesList.SelectedItem()
-	if sel == nil {
+	selectedArticle := m.articlesList.SelectedItem()
+	if selectedArticle == nil {
 		return m, nil, true
 	}
-	ai := sel.(articleItem)
-	if ai.article.Link != "" {
-		if err := m.db.MarkArticleAsRead(ai.article.ID); err != nil {
+
+	article := selectedArticle.(articleItem)
+	if article.article.Link != "" {
+		if err := m.db.MarkArticleAsRead(article.article.ID); err != nil {
 			return m, func() tea.Msg {
 				return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
 			}, true
 		}
+
+		// Once we have read the article we want to move to the next items
+		// so the user can `r` their way through the list, rather than `r + j`.
+		if m.articlesList.GlobalIndex()+1 < len(m.articlesList.Items()) {
+			m.articlesList.Select(m.articlesList.GlobalIndex() + 1)
+		}
+
 		return m, tea.Batch(
 			refreshArticlesCmd(m),
 			fetchFeeds(m.db),
 		), true
 	}
+
 	return m, nil, true
 }
 
