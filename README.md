@@ -12,11 +12,11 @@ A simple TUI for RSS Feeds. It has the following features:
 - Refresh feeds every 10 minutes (configurable).
 - Tag feeds using any label you would like.
 
-Rose Pine Day
+**Rose Pine Day**
 
 ![Rose Pine Day](./docs/rose-pine-day.png)
 
-Rose Pine Night
+**Rose Pine Night**
 
 ![Rose Pine Night](./docs/rose-pine-night.png)
 
