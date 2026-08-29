@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: "go.mod"
+
+      - name: Get dependencies
+        run: |
+          make install
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          make clean
+
+          GOOSARCHES=(
+            darwin/amd64
+            darwin/arm64
+            freebsd/amd64
+            freebsd/386
+            linux/arm
+            linux/arm64
+            linux/amd64
+            linux/386
+            windows/amd64
+            windows/386
+          )
+
+          for GOOSARCH in "${GOOSARCHES[@]}"; do
+            GOOS=${GOOSARCH%/*}
+            ARCH=${GOOSARCH#*/}
+
+            echo "\n\nBuilding binary for ${GOOS}/${ARCH}\n"
+
+            GIT_RELEASE=${{ github.event.release.tag_name }} GOOS=${GOOS} GOARCH=${ARCH} make static-named
+          done
+
+          gh release upload ${{ github.event.release.tag_name }} build/*

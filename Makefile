@@ -39,6 +39,20 @@ lint: ## Vet the code
 build: ## Build the application
 	go build -o $(NAME) .
 
+.PHONY: static
+static: ## Build the application
+	CGO_ENABLED=0 go build -ldflags "-extldflags -static -X github.com/benmatselby/$(NAME)/version.GITCOMMIT=$(GIT_RELEASE)" -o $(NAME) .
+
+.PHONY: static-named
+static-named: ## Build the application with named outputs
+	GOOS=$(GOOS) GOARCH=$(GOARCH) CGO_ENABLED=0 \
+		go build \
+		-ldflags "-extldflags -static -X github.com/benmatselby/$(NAME)/version.GITCOMMIT=$(GIT_RELEASE)" \
+		-o $(OUT_PATH) .
+
+	md5sum $(OUT_PATH) > $(OUT_PATH).md5 || md5 $(OUT_PATH) > $(OUT_PATH).md5
+	sha256sum $(OUT_PATH) > $(OUT_PATH).sha256 || shasum $(OUT_PATH) > $(OUT_PATH).sha256
+
 .PHONY:
 mocks: ## Generate the mocks
 	go generate -x ./...
@@ -58,3 +72,5 @@ all: clean install build test ## Run everything
 .PHONY: all-dev
 all-dev: clean build lint test ## Run everything (dev)
 
+.PHONY: static-all ## Run everything (static binding)
+static-all: clean install static test
