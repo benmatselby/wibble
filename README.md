@@ -24,7 +24,7 @@ You can theme it however you like, see [docs/examples/](./docs/examples/) for ot
 
 ## Requirements
 
-- Go 1.26+
+- Go 1.27+
 
 ## Installation
 
