@@ -10,7 +10,7 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.50
 	github.com/mitchellh/go-homedir v1.1.0 // MIT
-	github.com/mmcdole/gofeed v1.4.1
+	github.com/mmcdole/gofeed v1.4.2
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0 // MIT
 	go.uber.org/mock v0.6.0
