@@ -495,6 +495,12 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 			return handleStartAddTag(m)
 		case key.Matches(msg, m.keys.RemoveTag):
 			return handleStartRemoveTag(m)
+		case key.Matches(msg, m.keys.ListDown):
+			m.articlesList.CursorDown()
+			return handleViewArticle(m)
+		case key.Matches(msg, m.keys.ListUp):
+			m.articlesList.CursorUp()
+			return handleViewArticle(m)
 		}
 	}
 	return nil, nil, false
