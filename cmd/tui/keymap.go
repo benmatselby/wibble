@@ -21,12 +21,14 @@ type KeyMap struct {
 	DeleteTag key.Binding
 
 	// Articles pane
-	MarkAsRead  key.Binding
-	ViewArticle key.Binding
-	OpenArticle key.Binding
-	AddTag      key.Binding
-	RemoveTag   key.Binding
-	Back        key.Binding
+	MarkAsRead      key.Binding
+	ViewArticle     key.Binding
+	OpenArticle     key.Binding
+	AddTag          key.Binding
+	RemoveTag       key.Binding
+	Back            key.Binding
+	NextArticle     key.Binding
+	PreviousArticle key.Binding
 }
 
 // DefaultKeyMap is the out-of-the-box keybinding configuration.
@@ -97,5 +99,13 @@ var DefaultKeyMap = KeyMap{
 	Back: key.NewBinding(
 		key.WithKeys("esc", "left", "h", "backspace"),
 		key.WithHelp("esc/←/h", "back"),
+	),
+	NextArticle: key.NewBinding(
+		key.WithKeys("n"),
+		key.WithHelp("n", "next article"),
+	),
+	PreviousArticle: key.NewBinding(
+		key.WithKeys("p"),
+		key.WithHelp("p", "previous article"),
 	),
 }
