@@ -63,7 +63,7 @@ func (m model) View() tea.View {
 		)
 
 		help = m.styles.help.Render(fmt.Sprintf(
-			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
+			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
 			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "navigation",
 			m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
 			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
@@ -71,7 +71,6 @@ func (m model) View() tea.View {
 			m.keys.MarkAsRead.Help().Key, m.keys.MarkAsRead.Help().Desc,
 			m.keys.AddTag.Help().Key, m.keys.AddTag.Help().Desc,
 			m.keys.RemoveTag.Help().Key, m.keys.RemoveTag.Help().Desc,
-			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
 	case paneArticle:
 		panels = lipgloss.JoinHorizontal(
@@ -81,14 +80,13 @@ func (m model) View() tea.View {
 		)
 
 		help = m.styles.help.Render(fmt.Sprintf(
-			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
+			"%s %s • %s %s • %s %s • %s %s • %s %s • %s %s",
 			fmt.Sprintf("%s/%s", m.keys.ListDown.Help().Key, m.keys.ListUp.Help().Key), "scroll",
 			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
 			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
 			fmt.Sprintf("%s/%s", m.keys.NextArticle.Help().Key, m.keys.PreviousArticle.Help().Key), "next/prev article",
 			m.keys.AddTag.Help().Key, m.keys.AddTag.Help().Desc,
 			m.keys.RemoveTag.Help().Key, m.keys.RemoveTag.Help().Desc,
-			m.keys.Quit.Help().Key, m.keys.Quit.Help().Desc,
 		))
 	}
 
