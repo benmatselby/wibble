@@ -427,83 +427,99 @@ func handleKeypress(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
 
 	switch m.focusedPane {
 	case paneFeeds:
-		if m.leftPaneMode == leftPaneTags {
-			if m.tagsList.FilterState() == list.Filtering {
-				break
-			}
-			switch {
-			case key.Matches(msg, m.keys.Quit):
-				return m, tea.Quit, true
-			case key.Matches(msg, m.keys.OpenTag):
-				return handleOpenTag(m)
-			case key.Matches(msg, m.keys.DeleteTag):
-				return handleDeleteTag(m)
-			case key.Matches(msg, m.keys.ToggleTagsPane):
-				return handleToggleLeftPane(m)
-			}
-			break
-		}
+		return handleKeypressFeedsPane(msg, m)
+	case paneArticles:
+		return handleKeypressArticlesPane(msg, m)
+	case paneArticle:
+		return handleKeypressArticlePane(msg, m)
+	}
+	return nil, nil, false
+}
 
-		// Don't intercept filter keys
-		if m.feedsList.FilterState() == list.Filtering {
-			break
+// handleKeypressFeedsPane processes keypresses while the feeds/tags pane is focused.
+func handleKeypressFeedsPane(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
+	if m.leftPaneMode == leftPaneTags {
+		if m.tagsList.FilterState() == list.Filtering {
+			return nil, nil, false
 		}
-
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit, true
-		case key.Matches(msg, m.keys.OpenFeed):
-			return handleOpenFeed(m)
-		case key.Matches(msg, m.keys.MarkAllAsRead):
-			return handleMarkAllAsRead(m)
+		case key.Matches(msg, m.keys.OpenTag):
+			return handleOpenTag(m)
+		case key.Matches(msg, m.keys.DeleteTag):
+			return handleDeleteTag(m)
 		case key.Matches(msg, m.keys.ToggleTagsPane):
 			return handleToggleLeftPane(m)
 		}
+		return nil, nil, false
+	}
 
-	case paneArticles:
-		if m.articlesList.FilterState() == list.Filtering {
-			break
-		}
+	// Don't intercept filter keys
+	if m.feedsList.FilterState() == list.Filtering {
+		return nil, nil, false
+	}
 
-		switch {
-		case key.Matches(msg, m.keys.Back):
-			m.focusedPane = paneFeeds
-			return m, nil, true
-		case key.Matches(msg, m.keys.ViewArticle):
-			return handleViewArticle(m)
-		case key.Matches(msg, m.keys.OpenArticle):
-			return handleOpenArticle(m)
-		case key.Matches(msg, m.keys.MarkAsRead):
-			return handleMarkItemAsRead(m)
-		case key.Matches(msg, m.keys.MarkAllAsRead):
-			return handleMarkAllAsRead(m)
-		case key.Matches(msg, m.keys.AddTag):
-			return handleStartAddTag(m)
-		case key.Matches(msg, m.keys.RemoveTag):
-			return handleStartRemoveTag(m)
-		}
+	switch {
+	case key.Matches(msg, m.keys.Quit):
+		return m, tea.Quit, true
+	case key.Matches(msg, m.keys.OpenFeed):
+		return handleOpenFeed(m)
+	case key.Matches(msg, m.keys.MarkAllAsRead):
+		return handleMarkAllAsRead(m)
+	case key.Matches(msg, m.keys.ToggleTagsPane):
+		return handleToggleLeftPane(m)
+	}
+	return nil, nil, false
+}
 
-	case paneArticle:
-		switch {
-		case key.Matches(msg, m.keys.Back):
-			m.focusedPane = paneArticles
-			return m, tea.Batch(
-				fetchFeeds(m.db),
-				refreshArticlesCmd(m),
-			), true
-		case key.Matches(msg, m.keys.OpenArticle):
-			return handleOpenArticle(m)
-		case key.Matches(msg, m.keys.AddTag):
-			return handleStartAddTag(m)
-		case key.Matches(msg, m.keys.RemoveTag):
-			return handleStartRemoveTag(m)
-		case key.Matches(msg, m.keys.NextArticle):
-			m.articlesList.CursorDown()
-			return handleViewArticle(m)
-		case key.Matches(msg, m.keys.PreviousArticle):
-			m.articlesList.CursorUp()
-			return handleViewArticle(m)
-		}
+// handleKeypressArticlesPane processes keypresses while the articles pane is focused.
+func handleKeypressArticlesPane(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
+	if m.articlesList.FilterState() == list.Filtering {
+		return nil, nil, false
+	}
+
+	switch {
+	case key.Matches(msg, m.keys.Back):
+		m.focusedPane = paneFeeds
+		return m, nil, true
+	case key.Matches(msg, m.keys.ViewArticle):
+		return handleViewArticle(m)
+	case key.Matches(msg, m.keys.OpenArticle):
+		return handleOpenArticle(m)
+	case key.Matches(msg, m.keys.MarkAsRead):
+		return handleMarkItemAsRead(m)
+	case key.Matches(msg, m.keys.MarkAllAsRead):
+		return handleMarkAllAsRead(m)
+	case key.Matches(msg, m.keys.AddTag):
+		return handleStartAddTag(m)
+	case key.Matches(msg, m.keys.RemoveTag):
+		return handleStartRemoveTag(m)
+	}
+	return nil, nil, false
+}
+
+// handleKeypressArticlePane processes keypresses while a single article is focused.
+func handleKeypressArticlePane(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cmd, bool) {
+	switch {
+	case key.Matches(msg, m.keys.Back):
+		m.focusedPane = paneArticles
+		return m, tea.Batch(
+			fetchFeeds(m.db),
+			refreshArticlesCmd(m),
+		), true
+	case key.Matches(msg, m.keys.OpenArticle):
+		return handleOpenArticle(m)
+	case key.Matches(msg, m.keys.AddTag):
+		return handleStartAddTag(m)
+	case key.Matches(msg, m.keys.RemoveTag):
+		return handleStartRemoveTag(m)
+	case key.Matches(msg, m.keys.NextArticle):
+		m.articlesList.CursorDown()
+		return handleViewArticle(m)
+	case key.Matches(msg, m.keys.PreviousArticle):
+		m.articlesList.CursorUp()
+		return handleViewArticle(m)
 	}
 	return nil, nil, false
 }
