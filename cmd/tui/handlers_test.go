@@ -556,7 +556,7 @@ func TestHandleMarkItemAsRead_NoOpWhenArticleLinkIsEmpty(t *testing.T) {
 
 	db.EXPECT().MarkArticleAsRead(article.ID).MaxTimes(0)
 
-	_, command, wasHandled := handleMarkItemAsRead(m)
+	_, command, wasHandled := handleMarkItemAsRead(m, 0)
 
 	if command != nil {
 		t.Fatal("expected command to be nil, got command")
@@ -573,7 +573,7 @@ func TestHandleMarkItemAsRead_ReturnsErrorMessageWhenArticleCannotBeMarkedAsRead
 
 	db.EXPECT().MarkArticleAsRead(article.ID).Return(fmt.Errorf("db failure")).Times(1)
 
-	_, command, wasHandled := handleMarkItemAsRead(m)
+	_, command, wasHandled := handleMarkItemAsRead(m, 1)
 
 	if command == nil {
 		t.Fatal("expected command to not be nil, got nil")
@@ -600,7 +600,7 @@ func TestHandleMarkItemAsRead_PicksNextArticleItemToRead(t *testing.T) {
 		t.Fatalf("expected initial global index to be 0, got %d", m.articlesList.GlobalIndex())
 	}
 
-	_, _, _ = handleMarkItemAsRead(m)
+	_, _, _ = handleMarkItemAsRead(m, 1)
 
 	if m.articlesList.GlobalIndex() != 1 {
 		t.Fatalf("expected global index to be 1 after marking as read, got %d", m.articlesList.GlobalIndex())
@@ -617,7 +617,7 @@ func TestHandleMarkItemAsRead_StaysOnLastItemIfItsTheLastItem(t *testing.T) {
 		t.Fatalf("expected initial global index to be 0, got %d", m.articlesList.GlobalIndex())
 	}
 
-	_, _, _ = handleMarkItemAsRead(m)
+	_, _, _ = handleMarkItemAsRead(m, 1)
 
 	if m.articlesList.GlobalIndex() != 0 {
 		t.Fatalf("expected global index to be 0 after marking as read, got %d", m.articlesList.GlobalIndex())

@@ -198,9 +198,8 @@ func handleOpenArticle(m model) (tea.Model, tea.Cmd, bool) {
 }
 
 // handleMarkItemAsRead marks the currently selected article as read and
-// moves the list selection to the next article, so the user can skip
-// over their articles quicker whilst marking as read.
-func handleMarkItemAsRead(m model) (tea.Model, tea.Cmd, bool) {
+// moves the list selection according to move (0 = stay, -1 = up, +1 = down).
+func handleMarkItemAsRead(m model, move int) (tea.Model, tea.Cmd, bool) {
 	selectedArticle := m.articlesList.SelectedItem()
 	if selectedArticle == nil {
 		return m, nil, true
@@ -214,10 +213,10 @@ func handleMarkItemAsRead(m model) (tea.Model, tea.Cmd, bool) {
 			}, true
 		}
 
-		// Once we have read the article we want to move to the next items
-		// so the user can `r` their way through the list, rather than `r + j`.
-		if m.articlesList.GlobalIndex()+1 < len(m.articlesList.Items()) {
-			m.articlesList.Select(m.articlesList.GlobalIndex() + 1)
+		if move < 0 {
+			m.articlesList.CursorUp()
+		} else if move > 0 {
+			m.articlesList.CursorDown()
 		}
 
 		return m, tea.Batch(
@@ -487,14 +486,16 @@ func handleKeypressArticlesPane(msg tea.KeyPressMsg, m model) (tea.Model, tea.Cm
 		return handleViewArticle(m)
 	case key.Matches(msg, m.keys.OpenArticle):
 		return handleOpenArticle(m)
-	case key.Matches(msg, m.keys.MarkAsRead):
-		return handleMarkItemAsRead(m)
 	case key.Matches(msg, m.keys.MarkAllAsRead):
 		return handleMarkAllAsRead(m)
 	case key.Matches(msg, m.keys.AddTag):
 		return handleStartAddTag(m)
 	case key.Matches(msg, m.keys.RemoveTag):
 		return handleStartRemoveTag(m)
+	case key.Matches(msg, m.keys.NextArticle):
+		return handleMarkItemAsRead(m, 1)
+	case key.Matches(msg, m.keys.PreviousArticle):
+		return handleMarkItemAsRead(m, -1)
 	}
 	return nil, nil, false
 }
