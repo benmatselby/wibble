@@ -68,7 +68,8 @@ func (m model) View() tea.View {
 			m.keys.ListFilter.Help().Key, m.keys.ListFilter.Help().Desc,
 			m.keys.Back.Help().Key, m.keys.Back.Help().Desc,
 			m.keys.OpenArticle.Help().Key, m.keys.OpenArticle.Help().Desc,
-			m.keys.MarkAsRead.Help().Key, m.keys.MarkAsRead.Help().Desc,
+
+			fmt.Sprintf("%s/%s", m.keys.NextArticle.Help().Key, m.keys.PreviousArticle.Help().Key), "reading navigation",
 			m.keys.AddTag.Help().Key, m.keys.AddTag.Help().Desc,
 			m.keys.RemoveTag.Help().Key, m.keys.RemoveTag.Help().Desc,
 		))
