@@ -163,7 +163,12 @@ func (m model) renderArticleModal() string {
 		return fmt.Sprintf("Error converting article content: %v", err)
 	}
 
-	out, err := glamour.Render(fmt.Sprintf("# %s\n%s", article.Title, markdown), theme)
+	strapline := article.Published.Format("Jan 2, 2006 3:04 PM")
+	if !article.IsRead {
+		strapline = fmt.Sprintf("%s %s", "**New**", strapline)
+	}
+
+	out, err := glamour.Render(fmt.Sprintf("# %s\n%s\n\n%s", article.Title, strapline, markdown), theme)
 	if err != nil {
 		return fmt.Sprintf("Error rendering article content: %v", err)
 	}
