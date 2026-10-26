@@ -165,16 +165,16 @@ func handleViewArticle(m model) (tea.Model, tea.Cmd, bool) {
 	}
 	m.focusedPane = paneArticle
 	m.currentArticleID = selectedItem.(articleItem).article.ID
-	if err := m.db.MarkArticleAsRead(m.currentArticleID); err != nil {
-		return m, func() tea.Msg {
-			return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
-		}, true
-	}
 
 	content := m.renderArticleModal()
 	m.articleViewport.SetContent(content)
 	m.articleViewport.GotoTop()
 
+	if err := m.db.MarkArticleAsRead(m.currentArticleID); err != nil {
+		return m, func() tea.Msg {
+			return statusMsg{text: fmt.Sprintf("Error marking article as read: %v", err), level: statusError}
+		}, true
+	}
 	return m, nil, true
 }
 
