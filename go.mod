@@ -4,11 +4,10 @@ go 1.27.0
 
 require (
 	charm.land/bubbles/v2 v2.2.1
-	charm.land/bubbletea/v2 v2.1.0
+	charm.land/bubbletea/v2 v2.1.1
 	charm.land/glamour/v2 v2.0.1
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
-	github.com/golang/mock v1.6.0
 	github.com/mattn/go-sqlite3 v1.14.52
 	github.com/mitchellh/go-homedir v1.1.0 // MIT
 	github.com/mmcdole/gofeed v1.5.0
